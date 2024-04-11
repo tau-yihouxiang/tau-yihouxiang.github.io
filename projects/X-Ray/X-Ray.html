@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- bulma css template -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <!-- ionicons -->
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+  <!-- model viewer -->
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.1.1/model-viewer.min.js"></script>
+  <title>
+    X-Ray
+  </title>
+  <!-- <link rel="icon" href="icon.ico"> -->
+</head>
+<body>
+  <section class="section">
+
+  <div class="container has-text-centered">
+    <!-- paper title -->
+    <p class="title is-3"> X-Ray: A Sequential 3D Representation for Generation </p>
+    <!-- publication -->
+    <p class="subtitle is-4"> Arxiv 2024 </p>
+    <!-- authors -->
+    <p class="title is-5 mt-2"> 
+      <a href="../../index.html">Tao Hu</a><sup>1</sup>, 
+      <a href="https://g3956.github.io/wenhangge.github.io" target="_blank">Wenhang Ge</a><sup>2</sup>,
+      <a href="" target="_blank">Yuhang Zhao</a><sup>1</sup>, 
+      <a href="https://www.comp.nus.edu.sg/~leegh" target="_blank">Gim Hee Lee</a><sup>1</sup>
+    </p>
+    <!-- affiliations -->
+    <p class="subtitle is-5"> 
+      <sup>1</sup> National University of Singapore &nbsp;
+      <sup>2</sup> HKUST(GZ) &nbsp;
+    </p>
+
+    <!-- other links -->
+    <div class="is-flex is-justify-content-center">
+      <span class="icon-text mx-1">
+        <a class="button is-dark" href="https://arxiv.org" role="button" target="_blank"> <span class="icon"> <ion-icon name="document-outline"></ion-icon> </span> <span> Arxiv </span>  </a> 
+      </span>
+      <span class="icon-text mx-1">
+        <a class="button is-dark" href="https://github.com" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-github"></ion-icon> </span> <span> Code </span> </a> 
+      </span>
+      <span class="icon-text mx-1">
+        <a class="button is-dark" href="https://huggingface.co" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-apple-ar"></ion-icon> </span> <span> Demo </span> </a> 
+      </span>
+    </div>
+   
+  </div>
+
+  <!-- main container -->
+  <div class="container is-max-desktop has-text-centered">
+
+    <!-- abstract -->
+    <p class="title is-3 mt-5 has-text-centered"> Abstract </p>
+    <p class="content is-size-6 has-text-left">
+      We introduce a novel lightweight 3D representation, called X-Ray, for image to 3D 
+      generation, inspired by the principles of X-Ray shooting process. At its core, our 
+      approach leverages ray casting from the camera's center to record geometric and 
+      textural attributes encountered on all intersected surfaces. This methodology enables 
+      the compression of entire objects or scenes into a multi-layered surface representation. 
+      Subsequently, these surface attributes are organized into grid voxels, ensuring that 
+      only the essential surface information constitutes the 3D representation. The efficiency 
+      and versatility of the proposed X-Ray representation are demonstrated through its 
+      application in 3D object synthesis, including Text-to-3D and Image-to-3D transformations. 
+      Our proposed representation demonstrates significant improvements in both the fidelity 
+      and efficiency of 3D synthesis, offering promising avenues for future research 
+      and application.
+    </p>
+    
+    <!-- results (videos) -->
+    <!-- teaser -->
+    <p class="title is-3 mt-5 has-text-centered"> X-Ray Vs. Depth </p>
+    <img src="./files/teaser.pdf" alt="demo" style="width: 80%; height: auto;">
+    <p class="content is-size-6 has-text-left"> Fig. 1. Comparison between our the proposed X-Ray representation with the traditional depth representation. The depth only records the first visible surface with camera view, while ours takes down all the visible and invisible surfaces. </p>
+    
+    <!-- samples -->
+    <p class="title is-3 mt-5 has-text-centered"> Samples of X-Ray </p>
+    <img src="./files/samples.pdf" alt="demo" style="width: 80%; height: auto;">
+    <p class="content is-size-6 has-text-left"> Fig. 2. Samples of our proposed X-Ray Representation. The first row displays 
+      the raw 3D objects to be converted. The second row illustrates the images rendered 
+      from random camera perspectives. Subsequent rows reveal the hit <b>H</b>, 
+      depth <b>D</b>, normal <b>N</b>, and color <b>C</b> Maps of X-Ray from the 
+      1st to the 8th layer. It is important to note that the number of layers 
+      in an arbitrary X-Ray is not fixed, indicating various complexity of 3D objects. </p>
+
+    <!-- overview -->
+    <!-- samples -->
+    <p class="title is-3 mt-5 has-text-centered"> Synthesis Pipeline of X-Ray </p>
+    <img src="./files/overview.pdf" alt="demo" style="width: 90%; height: auto;">
+    <p class="content is-size-6 has-text-left"> Fig. 3. Overview of the 3D Generator for our proposed X-Ray. 
+      In the first stage, the diffusion model synthesizes a low-resolution X-Ray 
+      from random noise with text or image as condition. During the second stage, 
+      we adopt a Spatial-Temporal Upsampler to generate high-quality X-Ray. 
+      Finally, X-Ray can be directly converted to 3D Mesh via the decoding process. </p>
+
+    <!-- 3d model viewer -->
+    <p class="title is-3 mt-5 has-text-centered"> Image-to-3D </p>
+    <div class="level">
+        <img src="files/samples/image_1.png" alt="demo" style="width: 30%; height: auto;">
+        <img src="files/samples/xray_1.png" alt="demo" style="width: 12%; height: auto;">
+        <model-viewer src="files/samples/pcd_1.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+        <model-viewer src="files/samples/mesh_1.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+    </div>
+    <div class="level">
+      <img src="files/samples/image_2.png" alt="demo" style="width: 30%; height: auto;">
+      <img src="files/samples/xray_2.png" alt="demo" style="width: 12%; height: auto;">
+      <model-viewer src="files/samples/pcd_2.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      <model-viewer src="files/samples/mesh_2.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+    </div>
+    <div class="level">
+      <img src="files/samples/image_3.png" alt="demo" style="width: 30%; height: auto;">
+      <img src="files/samples/xray_3.png" alt="demo" style="width: 12%; height: auto;">
+      <model-viewer src="files/samples/pcd_3.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      <model-viewer src="files/samples/mesh_3.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+    </div>
+    
+    <!-- citation -->
+    <div class="card mt-4">
+      <header class="card-header">
+        <p class="card-header-title"> Citation </p>
+      </header>
+      <div class="card-content is-size-5 has-text-left">
+<pre><code>@article{X-Ray,
+  title={X-Ray: A Sequential 3D Representation for Generation},
+  author={Tao Hu, Wenhang Ge, Yuhang Zhao, Gim Hee Lee},
+  journal={arXiv preprint arXiv},
+  year={2024}
+}</code></pre>
+      </div>
+    </div>
+  </div>
+
+  </section>
+</body>
+</html>
