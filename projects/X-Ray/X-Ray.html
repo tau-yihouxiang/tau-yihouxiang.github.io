@@ -57,18 +57,22 @@
     <!-- abstract -->
     <p class="title is-3 mt-5 has-text-centered"> Abstract </p>
     <p class="content is-size-6 has-text-left">
-      We introduce a novel lightweight 3D representation, called X-Ray, for image to 3D 
-      generation, inspired by the principles of X-Ray shooting process. At its core, our 
-      approach leverages ray casting from the camera's center to record geometric and 
-      textural attributes encountered on all intersected surfaces. This methodology enables 
-      the compression of entire objects or scenes into a multi-layered surface representation. 
-      Subsequently, these surface attributes are organized into grid voxels, ensuring that 
-      only the essential surface information constitutes the 3D representation. The efficiency 
-      and versatility of the proposed X-Ray representation are demonstrated through its 
-      application in 3D object synthesis, including Text-to-3D and Image-to-3D transformations. 
-      Our proposed representation demonstrates significant improvements in both the fidelity 
-      and efficiency of 3D synthesis, offering promising avenues for future research 
-      and application.
+      In this paper, we introduce X-Ray, an innovative approach to 3D generation 
+      that employs a new sequential representation, drawing inspiration from the 
+      depth-revealing capabilities of X-Ray scans to meticulously capture both 
+      the external and internal features of objects. Central to our method is 
+      the utilization of ray casting techniques originating from the camera's 
+      viewpoint, meticulously recording the geometric and textural details 
+      encountered across all intersected surfaces. This process efficiently 
+      condenses complete objects or scenes into a multi-frame format, just like 
+      videos. Such a structure ensures the 3D representation is composed solely 
+      of critical surface information. Highlighting the practicality and 
+      adaptability of our X-Ray representation, we showcase its utility in 
+      synthesizing 3D objects, employing a network architecture akin to that 
+      used in video diffusion models. The outcomes reveal our representation's 
+      superior performance in enhancing both the accuracy and efficiency of 3D 
+      synthesis, heralding new directions for ongoing research and practical 
+      implementations in the field.
     </p>
     
     <!-- results (videos) -->
@@ -99,24 +103,83 @@
 
     <!-- 3d model viewer -->
     <p class="title is-3 mt-5 has-text-centered"> Image-to-3D </p>
+
     <div class="level">
-        <img src="files/samples/image_1.png" alt="demo" style="width: 30%; height: auto;">
-        <img src="files/samples/xray_1.png" alt="demo" style="width: 12%; height: auto;">
-        <model-viewer src="files/samples/pcd_1.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
-        <model-viewer src="files/samples/mesh_1.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
-    </div>
+      <div class="level-item">
+        <p> Image </p>        
+      </div>
+      <div class="level-item">
+        <p> X-Ray </p>        
+      </div>
+      <div class="level-item">
+        <p> Point Cloud </p>        
+      </div>
+      <div class="level-item">
+        <p> Mesh </p>        
+      </div>    
+  </div>
     <div class="level">
-      <img src="files/samples/image_2.png" alt="demo" style="width: 30%; height: auto;">
-      <img src="files/samples/xray_2.png" alt="demo" style="width: 12%; height: auto;">
-      <model-viewer src="files/samples/pcd_2.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
-      <model-viewer src="files/samples/mesh_2.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+        <div class="level-item">
+          <img src="files/samples/image_1.png" alt="demo" style="width: auto; height: 150px;">        
+        </div>
+        <div class="level-item">
+          <img src="files/samples/xray_1.png" alt="demo" style="width: auto; height: 150px; padding-left: 10%; padding-right: 20%;">
+        </div>
+        <div class="level-item">
+          <model-viewer src="files/samples/pcd_1.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+        </div>
+        <div class="level-item">
+          <model-viewer src="files/samples/mesh_1.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+        </div>    
     </div>
+    <hr>
     <div class="level">
-      <img src="files/samples/image_3.png" alt="demo" style="width: 30%; height: auto;">
-      <img src="files/samples/xray_3.png" alt="demo" style="width: 12%; height: auto;">
-      <model-viewer src="files/samples/pcd_3.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
-      <model-viewer src="files/samples/mesh_3.glb" style="width: 30%; height: 250px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      <div class="level-item">
+        <img src="files/samples/image_2.png" alt="demo" style="width: auto; height: 150px;">        
+      </div>
+      <div class="level-item">
+        <img src="files/samples/xray_2.png" alt="demo" style="width: auto; height: 150px;">
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/pcd_2.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/mesh_2.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>    
     </div>
+
+    <hr>
+    <div class="level">
+      <div class="level-item">
+        <img src="files/samples/image_3.png" alt="demo" style="width: auto; height: 150px;">        
+      </div>
+      <div class="level-item">
+        <img src="files/samples/xray_3.png" alt="demo" style="width: auto; height: 150px;">
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/pcd_3.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/mesh_3.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>    
+    </div>
+
+    <hr>
+    <div class="level">
+      <div class="level-item">
+        <img src="files/samples/image_4.png" alt="demo" style="width: auto; height: 150px;">        
+      </div>
+      <div class="level-item">
+        <img src="files/samples/xray_4.png" alt="demo" style="width: auto; height: 150px;">
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/pcd_4.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/mesh_4.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>    
+    </div>
+
     
     <!-- citation -->
     <div class="card mt-4">
