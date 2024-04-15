@@ -105,7 +105,6 @@
 
     <!-- 3d model viewer -->
     <p class="title is-3 mt-5 has-text-centered"> Image-to-3D </p>
-
     <div class="level">
       <div style="width: 25%;">
         <p> <strong>Input Image</strong> </p>        
@@ -181,7 +180,54 @@
         <model-viewer src="files/samples/mesh_4.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
       </div>    
     </div>
+  
 
+    <p class="title is-3 mt-5 has-text-centered"> Text-to-3D </p>
+    <div class="level">
+      <div style="width: 25%;">
+        <p> <strong>Input Prompt</strong> </p>        
+      </div>
+      <div style="width: 25%">
+        <p> <strong>Synthesized X-Ray</strong> </p>        
+      </div>
+      <div style="width: 25%">
+        <p> <strong>Encoded Point Cloud</strong> </p>        
+      </div>
+      <div style="width: 25%">
+        <p> <strong>Decoded Mesh</strong> </p>        
+      </div>    
+    
+  </div>
+    <div class="level">
+        <div class="level-item" style="align-items: center; width: 200px; height: 200px">
+          <p"><strong> "a black and silver <br>
+            power supply" </strong> </p>       
+        </div>
+        <div class="level-item">
+          <img src="files/samples/xray_5.png" alt="demo" style="width: 200px; height: 200px; padding-left: 50px; padding-right: 50px;">
+        </div>
+        <div class="level-item">
+          <model-viewer src="files/samples/pcd_5.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+        </div>
+        <div class="level-item">
+          <model-viewer src="files/samples/mesh_5.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+        </div>    
+    </div>
+    <hr>
+    <div class="level">
+      <div class="level-item" style="align-items: center; width: 200px; height: 200px">
+        <p"><strong> "Green wine bottle" </strong> </p>       
+      </div>
+      <div class="level-item">
+        <img src="files/samples/xray_6.png" alt="demo" style="width: 200px; height: 200px; padding-left: 50px; padding-right: 50px;">
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/pcd_6.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/mesh_6.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>    
+  </div>
     
     <!-- citation -->
     <div class="card mt-4">
