@@ -83,8 +83,43 @@
     <div style="height: 25px;"></div>
     <p class="title is-3 mt-5 has-text-centered"> X-Ray (Ours) VS. Rendering-based Synthesis </p>
     <img src="./files/teaser.pdf" alt="demo" style="width: 80%; height: auto;">
-    <p class="content is-size-6 has-text-left"> Fig. 1. Comparison between our the proposed X-Ray representation with the traditional rendering-based synthesis. The former focus on outside surface within the camera view, while ours takes down all the inside and outside surfaces. </p>
-    
+    <div style="height: 25px;"></div>
+    <div class="level">
+      <div style="width: 33%">
+        <p> <strong>Input Image</strong> </p>        
+      </div>
+      <div style="width: 33%">
+        <p> <strong>TripoSR</strong> </p>        
+      </div>
+      <div style="width: 33%">
+        <p> <strong>X-Ray(Ours)</strong> </p>        
+      </div>    
+  </div>    
+    <div class="level">
+      <div class="level-item">
+        <img src="files/samples/inside_image_1.png" alt="demo" style="width: auto; height: 200px;">        
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/inside_triposr_1.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/inside_ours_1.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>    
+    </div>
+    <div class="level">
+      <div class="level-item">
+        <img src="files/samples/inside_image_2.png" alt="demo" style="width: auto; height: 200px;">        
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/inside_triposr_2.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>
+      <div class="level-item">
+        <model-viewer src="files/samples/inside_ours_2.glb" style="width: 200px; height: 200px;" auto-rotate shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+      </div>   
+    </div>
+    <p class="content is-size-6 has-text-left"> Fig. 1. Comparison between our the proposed X-Ray with the rendering-based 3D synthesis. The former usually focus on the visible surface within camera view, while ours can sense all the visible and invisible surfaces thus can generate 3D object with both outside and inside shape and appearance. </p> 
+
+
     <!-- samples -->
     <div style="height: 25px;"></div>
     <p class="title is-3 mt-5 has-text-centered"> Samples of X-Ray </p>
