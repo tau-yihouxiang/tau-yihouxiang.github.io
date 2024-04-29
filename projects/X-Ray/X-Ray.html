@@ -44,10 +44,13 @@
         <a class="button is-dark" href="https://arxiv.org/abs/2404.14329" role="button" target="_blank"> <span class="icon"> <ion-icon name="document-outline"></ion-icon> </span> <span> Arxiv </span>  </a> 
       </span>
       <span class="icon-text mx-1">
-        <a class="button is-dark" href="https://github.com" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-github"></ion-icon> </span> <span> Code </span> </a> 
+        <a class="button is-dark" href="https://github.com/tau-yihouxiang/X-Ray" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-github"></ion-icon> </span> <span> Code </span> </a> 
       </span>
       <span class="icon-text mx-1">
         <a class="button is-dark" href="https://huggingface.co" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-apple-ar"></ion-icon> </span> <span> Demo </span> </a> 
+      </span>
+      <span class="icon-text mx-1">
+        <a class="button is-dark" href="https://huggingface.co/datasets/yihouxiang/X-Ray" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-apple-ar"></ion-icon> </span> <span> Dataset </span> </a> 
       </span>
     </div>
    
@@ -62,6 +65,17 @@
     <p class="content is-size-6 has-text-left">
       In this paper, we introduce X-Ray, an innovative approach to 3D generation that employs a new sequential representation, drawing inspiration from the depth-revealing capabilities of X-Ray scans to meticulously capture both the external and internal features of objects. Central to our method is the utilization of ray casting techniques originating from the camera's viewpoint, meticulously recording the geometric and textural details encountered across all intersected surfaces. This process efficiently condenses complete objects or scenes into a multi-frame format, just like videos. Such a structure ensures the 3D representation is composed solely of critical surface information. Highlighting the practicality and adaptability of our X-Ray representation, we showcase its utility in synthesizing 3D objects, employing a network architecture akin to that used in video diffusion models. The outcomes reveal our representation's superior performance in enhancing both the accuracy and efficiency of 3D synthesis, heralding new directions for ongoing research and practical implementations in the field.
     </p>
+
+    <!-- samples -->
+    <div style="height: 25px;"></div>
+    <p class="title is-3 mt-5 has-text-centered"> Samples of X-Ray </p>
+    <img src="./files/samples.gif" alt="demo" style="width: 80%; height: auto;">
+    <p class="content is-size-6 has-text-left"> Fig. 2. Samples of our proposed X-Ray Representation. The first row displays 
+      the raw 3D objects to be converted. The second row illustrates the images rendered 
+      from random camera perspectives. Subsequent rows reveal the hit <b>H</b>, 
+      depth <b>D</b>, normal <b>N</b>, and color <b>C</b> Maps of X-Ray from the 
+      1st to the 8th layer. It is important to note that the number of layers 
+      in an arbitrary X-Ray is not fixed, indicating various complexity of 3D objects. </p>
     
     <!-- results (videos) -->
     <!-- teaser -->
@@ -104,17 +118,6 @@
     </div>
     <p class="content is-size-6 has-text-left"> Fig. 1. Comparison between our the proposed X-Ray with the rendering-based 3D synthesis. The former usually focus on the visible surface within camera view, while ours can sense all the visible and invisible surfaces thus can generate 3D object with both outside and inside shape and appearance. </p> 
 
-
-    <!-- samples -->
-    <div style="height: 25px;"></div>
-    <p class="title is-3 mt-5 has-text-centered"> Samples of X-Ray </p>
-    <img src="./files/samples.png" alt="demo" style="width: 80%; height: auto;">
-    <p class="content is-size-6 has-text-left"> Fig. 2. Samples of our proposed X-Ray Representation. The first row displays 
-      the raw 3D objects to be converted. The second row illustrates the images rendered 
-      from random camera perspectives. Subsequent rows reveal the hit <b>H</b>, 
-      depth <b>D</b>, normal <b>N</b>, and color <b>C</b> Maps of X-Ray from the 
-      1st to the 8th layer. It is important to note that the number of layers 
-      in an arbitrary X-Ray is not fixed, indicating various complexity of 3D objects. </p>
 
     <!-- overview -->
     <!-- samples -->
@@ -296,9 +299,9 @@
 <pre><code>@article{X-Ray,
   title={X-Ray: A Sequential 3D Representation for Generation},
   author={Tao Hu, Wenhang Ge, Yuyang Zhao, Gim Hee Lee},
-  journal={arXiv preprint arXiv},
-  year={2024}
-}</code></pre>
+  journal={arXiv preprint arXiv: 2404.14329v1},
+  year={2024}}
+</code></pre>
       </div>
     </div>
   </div>
