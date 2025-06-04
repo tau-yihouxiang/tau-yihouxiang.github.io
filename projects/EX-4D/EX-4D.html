@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- bulma css template -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <!-- ionicons -->
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+  <!-- model viewer -->
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.1.1/model-viewer.min.js"></script>
+  <title>
+    EX-4D
+  </title>
+  <link rel="icon" type="image/png" href="./files/logo-small.png">
+  <link rel="apple-touch-icon" href="./files/logo-small.png">
+</head>
+<body>
+  <section class="section">
+
+  <div class="container has-text-centered">
+    <!-- paper title -->
+    <img src="files/Logo.png" width="400" height=auto alt="Logo">
+    <p class="title is-3"> EX-4D: EXtreme Viewpoint 4D Video Synthesis via Depth Watertight Mesh </p>
+    <!-- publication -->
+    <!-- <p class="subtitle is-4"> Arxiv 2024 </p> -->
+    <!-- authors -->
+    <p class="title is-5 mt-2"> 
+      <a href="../../index.html">Tao Hu</a><sup>*</sup>, 
+      <a href="">Haoyang Peng</a><sup>*</sup>,
+      <a href="">Yuewen Ma</a>
+    </p>
+    <!-- affiliations -->
+    <p class="subtitle is-5"> 
+      Pico, Bytedance &nbsp;
+      <!-- <p style="font-size: 20px; "> <b>arXiv </b> </p> -->
+    </p>
+    <p style="font-size: smaller;"> * Equal Contribution.</p>
+    <p style="font-size: smaller;"> &nbsp; </p>
+
+    <!-- other links -->
+    <div class="is-flex is-justify-content-center">
+      <span class="icon-text mx-1">
+        <a class="button is-dark" href="" role="button" target="_blank"> <span class="icon"> <ion-icon name="document-outline"></ion-icon> </span> <span> Paper </span>  </a> 
+      </span>
+      <span class="icon-text mx-1">
+        <a class="button is-dark" href="https://github.com/tau-yihouxiang/EX-4D" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-github"></ion-icon> </span> <span> Code </span> </a> 
+      </span>
+      <span class="icon-text mx-1">
+        <a class="button is-dark" href="https://huggingface.co" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-apple-ar"></ion-icon> </span> <span> Demo </span> </a> 
+      </span>
+      <!-- <span class="icon-text mx-1">
+        <a class="button is-dark" href="https://huggingface.co/datasets/yihouxiang/EX-4D" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-apple-ar"></ion-icon> </span> <span> Dataset </span> </a>  -->
+      </span>
+    </div>
+   
+  </div>
+
+  <!-- main container -->
+  <div class="container is-max-desktop has-text-centered">
+    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+
+    <img src="./files/teaser.png" alt="demo" style="width: 80%; height: auto;">
+ 
+    <!-- abstract -->
+    <div style="height: 25px;"></div>
+    <p class="title is-3 mt-5 has-text-centered"> Abstract </p>
+    <p class="content is-size-6 has-text-left">
+      Generating high-quality camera-controllable videos from monocular input is a challenging task, particularly under extreme viewpoint. Existing methods often struggle with geometric inconsistencies and occlusion artifacts in boundaries, leading to degraded visual quality. In this paper, we introduce EX-4D, a novel framework that addresses these challenges through a Depth Watertight Mesh representation. The representation serves as a robust geometric prior by explicitly modeling both visible and occluded regions, ensuring geometric consistency in extreme camera pose. To overcome the lack of paired multi-view datasets, we propose a simulated masking strategy that generates effective training data only from monocular videos. Additionally, a lightweight LoRA-based video diffusion adapter is employed to synthesize high-quality, physically consistent, and temporally coherent videos. Extensive experiments demonstrate that EX-4D outperforms state-of-the-art methods in terms of physical consistency and extreme-view quality, enabling practical 4D video generation.
+    </p>
+
+    <!-- overview -->
+    <!-- samples -->
+    <div style="height: 25px;"></div>
+    <p class="title is-3 mt-5 has-text-centered"> Generation Pipeline of EX-4D </p>
+    <img src="./files/overview.png" alt="demo" style="width: 90%; height: auto;">
+    <p class="content is-size-6 has-text-left"> Fig. 3. Overview of the 3D Generator for our proposed EX-4D. 
+      In the first stage, the diffusion model synthesizes a low-resolution EX-4D 
+      from random noise with text or image as condition. During the second stage, 
+      we adopt a Spatial-Temporal Upsampler to generate high-quality EX-4D. 
+      Finally, EX-4D can be directly converted to 3D Mesh via the decoding process. </p>
+
+
+  </section>
+  <footer class="footer"></footer>
+    <div class="content has-text-centered">
+      <p>
+        This page is sourced from LGM <a href="https://me.kiui.moe/lgm/" target="_blank">https://me.kiui.moe/lgm.</a>
+      </p>
+    </div>
+  </footer>
+</body>
+</html>
