@@ -10,86 +10,705 @@
   <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
   <!-- model viewer -->
   <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.1.1/model-viewer.min.js"></script>
-  <title>
-    EX-4D
-  </title>
+  <!-- fontawesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async
+    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+  </script>
+  <title>EX-4D</title>
   <link rel="icon" type="image/png" href="./files/logo-small.png">
   <link rel="apple-touch-icon" href="./files/logo-small.png">
+  
+  <style>
+    /* Light mode styles */
+    .hero-section {
+      background: var(--bg-color, white);
+      color: var(--text-color, #333);
+      padding: 3rem 0;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    
+    .feature-card {
+      transition: transform 0.3s ease, background-color 0.3s ease;
+      height: 100%;
+      background: var(--card-bg, white);
+      border: 1px solid var(--border-color, #dbdbdb);
+    }
+    
+    .feature-card:hover {
+      transform: translateY(-5px);
+    }
+    
+    .method-overview {
+      background-color: var(--overview-bg, #f8f9fa);
+      border-radius: 10px;
+      padding: 2rem;
+      margin: 2rem 0;
+      transition: background-color 0.3s ease;
+    }
+    
+    .author-link {
+      color: var(--link-color, #3273dc);
+      text-decoration: none;
+    }
+    
+    .author-link:hover {
+      text-decoration: underline;
+    }
+    
+    .teaser-image {
+      border-radius: 10px;
+      box-shadow: 0 4px 20px var(--shadow-color, rgba(0,0,0,0.1));
+      transition: box-shadow 0.3s ease;
+    }
+
+    /* Video Gallery Styles */
+    .carousel-container {
+      position: relative;
+      overflow: hidden;
+      border-radius: 15px;
+      background: var(--card-bg, white);
+      box-shadow: 0 8px 30px var(--shadow-color, rgba(0,0,0,0.1));
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .carousel {
+      position: relative;
+      width: 100%;
+      height: 400px; /* Fixed height to prevent jumping */
+      overflow: hidden;
+    }
+    
+    .carousel-track {
+      display: flex;
+      transition: transform 0.5s ease-in-out;
+      height: 100%;
+      width: 100%;
+    }
+    
+    .carousel-item {
+      flex: 0 0 33.333%;
+      height: 100%;
+      position: relative;
+      padding: 0 10px;
+      box-sizing: border-box;
+    }
+    
+    .video-container {
+      width: 100%;
+      height: 100%;
+      aspect-ratio: 1;
+      background: var(--overview-bg, #f8f9fa);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .carousel-item video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    
+    .carousel-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: all 0.3s ease;
+      z-index: 10;
+    }
+    
+    .carousel-nav:hover {
+      background: rgba(0, 0, 0, 0.8);
+      transform: translateY(-50%) scale(1.1);
+    }
+    
+    .carousel-nav.prev {
+      left: 20px;
+    }
+    
+    .carousel-nav.next {
+      right: 20px;
+    }
+    
+    .carousel-indicators {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+    }
+    
+    .carousel-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: none;
+    }
+    
+    .carousel-indicator.active {
+      background: white;
+      transform: scale(1.2);
+    }
+    
+    .carousel-indicator:hover {
+      background: rgba(255, 255, 255, 0.8);
+    }
+    
+    .video-title {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 10;
+    }
+    
+    /* Responsive design */
+    @media (max-width: 1024px) {
+      .carousel-item {
+        flex: 0 0 50%;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .carousel {
+        height: 300px; /* Fixed height for mobile */
+      }
+      
+      .carousel-item {
+        flex: 0 0 100%;
+        padding: 0 5px;
+      }
+      
+      .carousel-nav {
+        width: 40px;
+        height: 40px;
+        font-size: 14px;
+      }
+      
+      .carousel-nav.prev {
+        left: 10px;
+      }
+      
+      .carousel-nav.next {
+        right: 10px;
+      }
+      
+      .video-title {
+        font-size: 12px;
+        padding: 6px 12px;
+        top: 10px;
+        left: 15px;
+      }
+    }
+
+    /* Dark mode styles */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #0a0a0a;
+        --text-color: #f5f5f5;
+        --card-bg: #1a1a1a;
+        --border-color: #363636;
+        --overview-bg: #1a1a1a;
+        --link-color: #5ba7f7;
+        --shadow-color: rgba(0,0,0,0.3);
+      }
+      
+      body {
+        background-color: #0a0a0a;
+        color: #f5f5f5;
+      }
+      
+      .section {
+        background-color: var(--bg-color);
+        color: var(--text-color);
+      }
+      
+      .title, .subtitle {
+        color: var(--text-color) !important;
+      }
+      
+      .content {
+        color: var(--text-color);
+      }
+      
+      .footer {
+        background-color: #1a1a1a;
+        color: #f5f5f5;
+      }
+    }
+
+    /* Manual dark mode toggle (optional) */
+    [data-theme="dark"] {
+      --bg-color: #0a0a0a;
+      --text-color: #f5f5f5;
+      --card-bg: #1a1a1a;
+      --border-color: #363636;
+      --overview-bg: #1a1a1a;
+      --link-color: #5ba7f7;
+      --shadow-color: rgba(0,0,0,0.3);
+    }
+    
+    [data-theme="dark"] body {
+      background-color: #0a0a0a;
+      color: #f5f5f5;
+    }
+    
+    [data-theme="dark"] .section {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+    }
+    
+    [data-theme="dark"] .title, 
+    [data-theme="dark"] .subtitle {
+      color: var(--text-color) !important;
+    }
+    
+    [data-theme="dark"] .content {
+      color: var(--text-color);
+    }
+    
+    [data-theme="dark"] .footer {
+      background-color: #1a1a1a;
+      color: #f5f5f5;
+    }
+  </style>
 </head>
 <body>
-  <section class="section">
-
-  <div class="container has-text-centered">
-    <!-- paper title -->
-    <img src="files/Logo.png" width="300" height=auto alt="Logo">
-    <p class="title is-3"> EX-4D: EXtreme Viewpoint 4D Video Synthesis via Depth Watertight Mesh </p>
-    <!-- publication -->
-    <!-- <p class="subtitle is-4"> Arxiv 2024 </p> -->
-    <!-- authors -->
-    <p class="title is-5 mt-2"> 
-      <a href="../../index.html">Tao Hu</a><sup>*</sup>, 
-      <a href="">Haoyang Peng</a><sup>*</sup>,
-      <a href="">Yuewen Ma</a>
-    </p>
-    <!-- affiliations -->
-    <p class="subtitle is-5"> 
-      Pico, Bytedance &nbsp;
-      <!-- <p style="font-size: 20px; "> <b>arXiv </b> </p> -->
-    </p>
-    <p style="font-size: smaller;"> * Equal Contribution.</p>
-    <p style="font-size: smaller;"> &nbsp; </p>
-
-    <!-- other links -->
-    <div class="is-flex is-justify-content-center">
-      <span class="icon-text mx-1">
-        <a class="button is-dark" href="" role="button" target="_blank"> <span class="icon"> <ion-icon name="document-outline"></ion-icon> </span> <span> Paper </span>  </a> 
-      </span>
-      <span class="icon-text mx-1">
-        <a class="button is-dark" href="https://github.com/tau-yihouxiang/EX-4D" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-github"></ion-icon> </span> <span> Code </span> </a> 
-      </span>
-      <span class="icon-text mx-1">
-        <a class="button is-dark" href="https://huggingface.co" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-apple-ar"></ion-icon> </span> <span> Demo </span> </a> 
-      </span>
-      <!-- <span class="icon-text mx-1">
-        <a class="button is-dark" href="https://huggingface.co/datasets/yihouxiang/EX-4D" role="button" target="_blank"> <span class="icon"> <ion-icon name="logo-apple-ar"></ion-icon> </span> <span> Dataset </span> </a>  -->
-      </span>
+  <!-- Hero Section -->
+  <section class="hero hero-section">
+    <div class="hero-body">
+      <div class="container has-text-centered">
+        <img src="files/Logo.png" width="250" height="auto" alt="Logo" style="margin-bottom: 1rem;">
+        <h1 class="title is-2"> 
+          EX-4D: EXtreme Viewpoint 4D Video Synthesis via Depth Watertight Mesh 
+        </h1>
+        <p class="subtitle is-5 mt-3"> 
+          <a href="../../index.html" class="author-link">Tao Hu</a><sup>*</sup>, 
+          <a href="" class="author-link">Haoyang Peng</a><sup>*</sup>,
+          <a href="" class="author-link">Yuewen Ma</a>
+        </p>
+        <p class="subtitle is-6"> 
+          Pico, Bytedance
+        </p>
+        <p style="font-size: smaller; color: var(--text-color, #666);"> * Equal Contribution</p>
+        
+        <!-- Action buttons -->
+        <div class="is-flex is-justify-content-center mt-5">
+          <span class="icon-text mx-2">
+            <a class="button is-dark is-medium" href="" role="button" target="_blank"> 
+              <span class="icon"> <ion-icon name="document-outline"></ion-icon> </span> 
+              <span> Paper </span>  
+            </a> 
+          </span>
+          <span class="icon-text mx-2">
+            <a class="button is-dark is-medium" href="https://github.com/tau-yihouxiang/EX-4D" role="button" target="_blank"> 
+              <span class="icon"> <ion-icon name="logo-github"></ion-icon> </span> 
+              <span> Code </span> 
+            </a> 
+          </span>
+          <span class="icon-text mx-2">
+            <a class="button is-dark is-medium" href="https://huggingface.co" role="button" target="_blank"> 
+              <span class="icon"> <ion-icon name="logo-apple-ar"></ion-icon> </span> 
+              <span> Demo </span> 
+            </a> 
+          </span>
+        </div>
+      </div>
     </div>
-   
-  </div>
-
-  <!-- main container -->
-  <div class="container is-max-desktop has-text-centered">
-    <p>&nbsp;</p>
-    <p>&nbsp;</p>
-
-    <img src="./files/teaser.png" alt="demo" style="width: 80%; height: auto;">
- 
-    <!-- abstract -->
-    <div style="height: 25px;"></div>
-    <p class="title is-3 mt-5 has-text-centered"> Abstract </p>
-    <p class="content is-size-6 has-text-left">
-      Generating high-quality camera-controllable videos from monocular input is a challenging task, particularly under extreme viewpoint. Existing methods often struggle with geometric inconsistencies and occlusion artifacts in boundaries, leading to degraded visual quality. In this paper, we introduce EX-4D, a novel framework that addresses these challenges through a Depth Watertight Mesh representation. The representation serves as a robust geometric prior by explicitly modeling both visible and occluded regions, ensuring geometric consistency in extreme camera pose. To overcome the lack of paired multi-view datasets, we propose a simulated masking strategy that generates effective training data only from monocular videos. Additionally, a lightweight LoRA-based video diffusion adapter is employed to synthesize high-quality, physically consistent, and temporally coherent videos. Extensive experiments demonstrate that EX-4D outperforms state-of-the-art methods in terms of physical consistency and extreme-view quality, enabling practical 4D video generation.
-    </p>
-
-    <!-- overview -->
-    <!-- samples -->
-    <div style="height: 25px;"></div>
-    <p class="title is-3 mt-5 has-text-centered"> Generation Pipeline of EX-4D </p>
-    <img src="./files/overview.png" alt="demo" style="width: 90%; height: auto;">
-    <p class="content is-size-6 has-text-left"> Fig. 3. Overview of the 3D Generator for our proposed EX-4D. 
-      In the first stage, the diffusion model synthesizes a low-resolution EX-4D 
-      from random noise with text or image as condition. During the second stage, 
-      we adopt a Spatial-Temporal Upsampler to generate high-quality EX-4D. 
-      Finally, EX-4D can be directly converted to 3D Mesh via the decoding process. </p>
-
-
   </section>
-  <footer class="footer"></footer>
+
+  <!-- Main Content -->
+  <div class="container is-max-desktop">
+    
+    <!-- Video Gallery -->
+    <section class="hero is-light is-small">
+      <div class="hero-body">
+        <div class="container">
+          <!-- <h2 class="title is-3 has-text-centered mb-5"> Video Gallery </h2> -->
+          <div class="carousel-container">
+            <div class="carousel" id="video-carousel">
+              <div class="carousel-track" id="carousel-track">
+                <div class="carousel-item">
+                  <!-- <div class="video-title">Bicycle Scene - Extreme Viewpoint Synthesis</div> -->
+                  <div class="video-container">
+                    <video autoplay muted loop controls>
+                      <source src="files/video/sora-1.mp4" type="video/mp4">
+                    </video>
+                  </div>
+                </div>
+                
+                <div class="carousel-item">
+                  <!-- <div class="video-title">Garden Scene - Dynamic Viewpoints</div> -->
+                  <div class="video-container">
+                    <video autoplay muted loop controls>
+                      <source src="files/video/flower.mp4" type="video/mp4">
+                    </video>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <!-- <div class="video-title">Playroom Scene - Indoor Navigation</div> -->
+                  <div class="video-container">
+                    <video autoplay muted loop controls>
+                      <source src="files/video/sea.mp4" type="video/mp4">
+                    </video>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <!-- <div class="video-title">Person Scene - Portrait Synthesis</div> -->
+                  <div class="video-container">
+                    <video autoplay muted loop controls>
+                      <source src="files/video/playground.mp4" type="video/mp4">
+                    </video>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <!-- <div class="video-title">Stump Scene - Occlusion Handling</div> -->
+                  <div class="video-container">
+                    <video autoplay muted loop controls>
+                      <source src="files/video/elephant.mp4" type="video/mp4">
+                    </video>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <!-- <div class="video-title">Table Scene - Object Tracking</div> -->
+                  <div class="video-container">
+                    <video autoplay muted loop controls>
+                      <source src="files/video/veo3-1.mp4" type="video/mp4">
+                    </video>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <!-- <div class="video-title">Outdoor Scene - Large Scale Environment</div> -->
+                  <div class="video-container">
+                    <video autoplay muted loop controls>
+                      <source src="files/video/night.mp4" type="video/mp4">
+                    </video>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <!-- <div class="video-title">Comparison - Method Evaluation</div> -->
+                  <div class="video-container">
+                    <video autoplay muted loop controls>
+                      <source src="files/video/cooker.mp4" type="video/mp4">
+                    </video>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <!-- <div class="video-title">Demo 1 - Temporal Coherence</div> -->
+                  <div class="video-container">
+                    <video autoplay muted loop controls>
+                      <source src="files/video/flower.mp4" type="video/mp4">
+                    </video>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <!-- <div class="video-title">Demo 2 - Full Pipeline</div> -->
+                  <div class="video-container">
+                    <video autoplay muted loop controls>
+                      <source src="files/video/flower.mp4" type="video/mp4">
+                    </video>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Navigation buttons -->
+              <button class="carousel-nav prev" id="prev-btn">
+                <i class="fas fa-chevron-left"></i>
+              </button>
+              <button class="carousel-nav next" id="next-btn">
+                <i class="fas fa-chevron-right"></i>
+              </button>
+              
+              <!-- Indicators -->
+              <div class="carousel-indicators" id="carousel-indicators">
+                <button class="carousel-indicator active" data-slide="0"></button>
+                <button class="carousel-indicator" data-slide="1"></button>
+                <button class="carousel-indicator" data-slide="2"></button>
+                <button class="carousel-indicator" data-slide="3"></button>
+                <button class="carousel-indicator" data-slide="4"></button>
+                <button class="carousel-indicator" data-slide="5"></button>
+                <button class="carousel-indicator" data-slide="6"></button>
+                <button class="carousel-indicator" data-slide="7"></button>
+                <button class="carousel-indicator" data-slide="8"></button>
+                <button class="carousel-indicator" data-slide="9"></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Abstract -->
+    <section class="section">
+      <h2 class="title is-3 has-text-centered"> Abstract </h2>
+      <div class="content is-size-6">
+        <p>
+          Generating high-quality camera-controllable videos from monocular input is challenging, particularly under extreme viewpoints. 
+          Existing methods often struggle with geometric inconsistencies and occlusion artifacts. We introduce <strong>EX-4D</strong>, 
+          a novel framework that addresses these challenges through a <strong>Depth Watertight Mesh</strong> representation that explicitly 
+          models both visible and occluded regions, ensuring geometric consistency even in extreme camera poses.
+        </p>
+        <p>
+          Our approach includes a simulated masking strategy that generates effective training data from monocular videos, 
+          eliminating the need for paired multi-view datasets. A lightweight LoRA-based video diffusion adapter synthesizes 
+          high-quality, physically consistent, and temporally coherent videos.
+        </p>
+      </div>
+    </section>
+
+    <!-- Key Features -->
+    <section class="section">
+      <h2 class="title is-3 has-text-centered"> Key Features </h2>
+      <div class="columns">
+        <div class="column">
+          <div class="card feature-card">
+            <div class="card-content has-text-centered">
+              <div class="content">
+                <h4 class="title is-5">🔧 Depth Watertight Mesh</h4>
+                <p>Novel geometric representation that models both visible and occluded regions for consistent extreme viewpoint synthesis.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="column">
+          <div class="card feature-card">
+            <div class="card-content has-text-centered">
+              <div class="content">
+                <h4 class="title is-5">🎭 Simulated Masking</h4>
+                <p>Training strategy that creates effective data from monocular videos without requiring multi-view datasets.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="column">
+          <div class="card feature-card">
+            <div class="card-content has-text-centered">
+              <div class="content">
+                <h4 class="title is-5">⚡ Lightweight Adapter</h4>
+                <p>LoRA-based video diffusion adapter with only 1% trainable parameters for efficient high-quality synthesis.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Method Overview -->
+    <section class="section">
+      <h2 class="title is-3 has-text-centered"> Method Overview </h2>
+      <div class="method-overview">
+        <div class="has-text-centered mb-4">
+          <img src="./files/overview.png" alt="Method Overview" style="width: 100%; height: auto; border-radius: 8px;">
+        </div>
+        <p class="content is-size-6">
+          Our EX-4D framework transforms monocular videos into extreme viewpoint 4D videos through three key steps: 
+          <strong>(1)</strong> constructing a DW-Mesh as geometric prior to handle boundary occlusions, 
+          <strong>(2)</strong> generating training masks to simulate novel view occlusions, and 
+          <strong>(3)</strong> using a lightweight video diffusion adapter for physically consistent and temporally coherent synthesis.
+        </p>
+      </div>
+    </section>
+
+    <!-- Results Highlight -->
+    <!-- <section class="section">
+      <h2 class="title is-3 has-text-centered"> Results </h2>
+      <div class="content">
+        <div class="has-text-centered mb-4">
+          <img src="./files/dwmesh.png" alt="DW-Mesh Results" style="width: 85%; height: auto; border-radius: 8px;">
+        </div>
+        <p class="has-text-centered is-size-6">
+          EX-4D consistently outperforms state-of-the-art methods across different viewpoint ranges, 
+          with performance gaps widening as camera angles become more extreme. User studies confirm 
+          superior realistic and physically consistent video generation.
+        </p>
+      </div>
+    </section>
+
+  </div> -->
+
+  <!-- <footer class="footer">
     <div class="content has-text-centered">
       <p>
-        This page is sourced from LGM <a href="https://me.kiui.moe/lgm/" target="_blank">https://me.kiui.moe/lgm.</a>
+        This page is based on the template from 
+        <a href="https://me.kiui.moe/lgm/" target="_blank">LGM</a>.
       </p>
     </div>
-  </footer>
+  </footer> -->
+
+  <script>
+    // Video Carousel Implementation
+    document.addEventListener('DOMContentLoaded', () => {
+      const track = document.getElementById('carousel-track');
+      const prevBtn = document.getElementById('prev-btn');
+      const nextBtn = document.getElementById('next-btn');
+      const indicators = document.querySelectorAll('.carousel-indicator');
+      
+      let currentSlide = 0;
+      const totalSlides = 10;
+      const slidesToShow = 3; // Number of videos to show at once
+      const maxSlides = totalSlides - slidesToShow + 1; // Maximum slide position
+      
+      // Update carousel position
+      function updateCarousel() {
+        const translateX = -currentSlide * (100 / slidesToShow);
+        track.style.transform = `translateX(${translateX}%)`;
+        
+        // Update indicators - show which group is active
+        indicators.forEach((indicator, index) => {
+          const isInCurrentView = index >= currentSlide && index < currentSlide + slidesToShow;
+          indicator.classList.toggle('active', isInCurrentView);
+        });
+      }
+      
+      // Next slide
+      function nextSlide() {
+        if (currentSlide < maxSlides - 1) {
+          currentSlide++;
+        } else {
+          currentSlide = 0; // Loop back to start
+        }
+        updateCarousel();
+      }
+      
+      // Previous slide
+      function prevSlide() {
+        if (currentSlide > 0) {
+          currentSlide--;
+        } else {
+          currentSlide = maxSlides - 1; // Loop to end
+        }
+        updateCarousel();
+      }
+      
+      // Go to specific slide group
+      function goToSlide(slideIndex) {
+        // Calculate which slide group this video belongs to
+        const targetSlide = Math.max(0, Math.min(slideIndex - Math.floor(slidesToShow / 2), maxSlides - 1));
+        currentSlide = targetSlide;
+        updateCarousel();
+      }
+      
+      // Event listeners
+      nextBtn.addEventListener('click', nextSlide);
+      prevBtn.addEventListener('click', prevSlide);
+      
+      indicators.forEach((indicator, index) => {
+        indicator.addEventListener('click', () => goToSlide(index));
+      });
+      
+      // Auto-play functionality (optional)
+      let autoplayInterval;
+      
+      function startAutoplay() {
+        autoplayInterval = setInterval(nextSlide, 6000); // Change slide every 6 seconds (longer for 3 videos)
+      }
+      
+      function stopAutoplay() {
+        clearInterval(autoplayInterval);
+      }
+      
+      // Pause autoplay on hover
+      const carousel = document.getElementById('video-carousel');
+      carousel.addEventListener('mouseenter', stopAutoplay);
+      carousel.addEventListener('mouseleave', startAutoplay);
+      
+      // Start autoplay
+      startAutoplay();
+      
+      // Keyboard navigation
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') {
+          prevSlide();
+          stopAutoplay();
+          startAutoplay(); // Restart autoplay timer
+        } else if (e.key === 'ArrowRight') {
+          nextSlide();
+          stopAutoplay();
+          startAutoplay(); // Restart autoplay timer
+        }
+      });
+      
+      // Touch/Swipe support for mobile
+      let startX = 0;
+      let endX = 0;
+      
+      carousel.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+      });
+      
+      carousel.addEventListener('touchend', (e) => {
+        endX = e.changedTouches[0].clientX;
+        handleSwipe();
+      });
+      
+      function handleSwipe() {
+        const swipeThreshold = 50;
+        const diff = startX - endX;
+        
+        if (Math.abs(diff) > swipeThreshold) {
+          if (diff > 0) {
+            nextSlide(); // Swipe left - next group
+          } else {
+            prevSlide(); // Swipe right - previous group
+          }
+          stopAutoplay();
+          startAutoplay(); // Restart autoplay timer
+        }
+      }
+      
+      // Update responsive behavior
+      function updateResponsiveLayout() {
+        const carousel = document.getElementById('video-carousel');
+        const screenWidth = window.innerWidth;
+        
+        // Adjust slidesToShow based on screen size
+        if (screenWidth <= 768) {
+          // Mobile: show 1 video
+          document.documentElement.style.setProperty('--slides-to-show', '1');
+        } else if (screenWidth <= 1024) {
+          // Tablet: show 2 videos  
+          document.documentElement.style.setProperty('--slides-to-show', '2');
+        } else {
+          // Desktop: show 3 videos
+          document.documentElement.style.setProperty('--slides-to-show', '3');
+        }
+      }
+      
+      // Initialize responsive layout
+      updateResponsiveLayout();
+      window.addEventListener('resize', updateResponsiveLayout);
+    });
+  </script>
+
 </body>
 </html>
