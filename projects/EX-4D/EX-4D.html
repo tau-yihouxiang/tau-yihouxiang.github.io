@@ -469,6 +469,40 @@
       </div>
     </section>
 
+    <!-- Input vs Output Comparison -->
+    <section class="section">
+      <h2 class="title is-3 has-text-centered"> Applications: World Generation </h2>
+      <div class="columns is-vcentered">
+      <div class="column is-half">
+        <div class="has-text-centered">
+        <h4 class="title is-5 mb-3">Input Image</h4>
+        <div class="card">
+          <div class="card-image">
+          <figure class="image"></figure>
+            <img src="./files/Demo-360-Input.png" alt="Input Image" style="border-radius: 8px; width: 100%; height: auto; aspect-ratio: 16/9; object-fit: cover;">
+          </figure>
+          </div>
+        </div>
+        <!-- <p class="content is-size-6 mt-3">Single monocular input image</p> -->
+        </div>
+      </div>
+      <div class="column is-half">
+        <div class="has-text-centered">
+        <h4 class="title is-5 mb-3">Output 360° World Video</h4>
+        <div class="card">
+          <div class="card-content" style="padding: 0;">
+          <video controls autoplay muted loop style="width: 100%; height: auto; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px;">
+            <source src="./files/Demo-360.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+          </div>
+        </div>
+        <!-- <p class="content is-size-6 mt-3">Generated 360° viewpoint synthesis</p> -->
+        </div>
+      </div>
+      </div>
+    </section>
+
     <!-- Abstract -->
     <section class="section">
       <h2 class="title is-3 has-text-centered"> Abstract </h2>
@@ -541,22 +575,7 @@
       </div>
     </section>
 
-    <!-- 360 Degree Generation Demo -->
-    <section class="section">
-      <h2 class="title is-3 has-text-centered"> 360° World Generation </h2>
-      <div class="has-text-centered">
-        <div style="max-width: 800px; margin: 0 auto;">
-          <video autoplay muted loop controls style="width: 100%; border-radius: 10px; box-shadow: 0 4px 20px var(--shadow-color, rgba(0,0,0,0.1));">
-            <source src="files/Demo-360.mp4" type="video/mp4">
-            Your browser does not support the video tag.
-          </video>
-        </div>
-        <p class="content is-size-6 mt-4">
-          Our method enables complete 360° viewpoint synthesis from a single monocular video, maintaining temporal coherence 
-          and geometric consistency throughout the full rotation while handling complex occlusions and depth discontinuities.
-        </p>
-      </div>
-    </section>
+    
 
     <!-- Method Overview -->
     <section class="section">
