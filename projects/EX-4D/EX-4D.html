@@ -541,6 +541,23 @@
       </div>
     </section>
 
+    <!-- 360 Degree Generation Demo -->
+    <section class="section">
+      <h2 class="title is-3 has-text-centered"> 360° World Generation </h2>
+      <div class="has-text-centered">
+        <div style="max-width: 800px; margin: 0 auto;">
+          <video autoplay muted loop controls style="width: 100%; border-radius: 10px; box-shadow: 0 4px 20px var(--shadow-color, rgba(0,0,0,0.1));">
+            <source src="files/Demo-360.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+        </div>
+        <p class="content is-size-6 mt-4">
+          Our method enables complete 360° viewpoint synthesis from a single monocular video, maintaining temporal coherence 
+          and geometric consistency throughout the full rotation while handling complex occlusions and depth discontinuities.
+        </p>
+      </div>
+    </section>
+
     <!-- Method Overview -->
     <section class="section">
       <h2 class="title is-3 has-text-centered"> Method Overview </h2>
@@ -557,32 +574,36 @@
       </div>
     </section>
 
-    <!-- Results Highlight -->
-    <!-- <section class="section">
-      <h2 class="title is-3 has-text-centered"> Results </h2>
-      <div class="content">
-        <div class="has-text-centered mb-4">
-          <img src="./files/dwmesh.png" alt="DW-Mesh Results" style="width: 85%; height: auto; border-radius: 8px;">
+  <!-- BibTeX Citation -->
+  <section class="section">
+    <h2 class="title is-3 has-text-centered"> Citation </h2>
+    <div class="content">
+      <div class="card">
+        <div class="card-content">
+          <pre style="background-color: var(--overview-bg, #f8f9fa); padding: 1.5rem; border-radius: 8px; overflow-x: auto; font-size: 0.875rem; text-align: left;">
+  @misc{hu2025ex4dextremeviewpoint4d,
+      title={EX-4D: EXtreme Viewpoint 4D Video Synthesis via Depth Watertight Mesh}, 
+      author={Tao Hu and Haoyang Peng and Xiao Liu and Yuewen Ma},
+      year={2025},
+      eprint={2506.05554},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2506.05554}, 
+}
+          </pre>
         </div>
-        <p class="has-text-centered is-size-6">
-          EX-4D consistently outperforms state-of-the-art methods across different viewpoint ranges, 
-          with performance gaps widening as camera angles become more extreme. User studies confirm 
-          superior realistic and physically consistent video generation.
-        </p>
       </div>
-    </section>
+    </div>
+  </section>
 
-  </div> -->
-
-  <!-- <footer class="footer">
+  <!-- Footer -->
+  <footer class="footer">
     <div class="content has-text-centered">
       <p>
-        This page is based on the template from 
-        <a href="https://me.kiui.moe/lgm/" target="_blank">LGM</a>.
+        © 2025 Pico, Bytedance. All rights reserved.
       </p>
     </div>
-  </footer> -->
-
+  </footer>
   <script>
     // Video Carousel Implementation
     document.addEventListener('DOMContentLoaded', () => {
