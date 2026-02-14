@@ -103,7 +103,7 @@
       margin: 0.5rem auto;
       padding: 0.75rem;
       border-radius: 6px;
-      font-size: 1rem;
+      font-size: 0.7rem;
       text-align: center;
     }
 
@@ -120,7 +120,7 @@
       text-align: center;
       cursor: pointer;
       font-family: system-ui, sans-serif;
-      font-size: 1rem;
+      font-size: 0.7rem;
       font-weight: 400;
       appearance: none;
       -webkit-appearance: none;
@@ -162,7 +162,7 @@
       background-color: rgb(47, 47, 47);
       color: #fff;
       font-family: system-ui, sans-serif;
-      font-size: 1rem;
+      font-size: 0.7rem;
       font-weight: 400;
       overflow: hidden;
     }
@@ -172,7 +172,7 @@
       border: none;
       color: #fff;
       font-family: system-ui, sans-serif;
-      font-size: 1rem;
+      font-size: 0.7rem;
       font-weight: 400;
       display: block;
       width: 100%;
@@ -196,7 +196,7 @@
       border-radius: 6px;
       background-color: rgb(60, 60, 60);
       color: #fff;
-      font-size: 0.95rem;
+      font-size: 0.7rem;
       cursor: pointer;
       position: relative;
       overflow: hidden;
@@ -276,11 +276,11 @@
       .frame-limit-wrap,
       .frame-limit-select,
       .drop-zone {
-        font-size: 1.1rem;
+        font-size: 0.77rem;
       }
 
       .cache-all-button {
-        font-size: 1rem;
+        font-size: 0.77rem;
       }
     }
 
@@ -648,6 +648,17 @@
     }
 
     @media (max-width: 760px) {
+      .drop-container {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+
+      .url-row,
+      .cache-all-button,
+      .drop-zone {
+        max-width: 100%;
+      }
+
       .controls {
         grid-template-columns: auto minmax(0, 1fr);
         grid-template-areas:
@@ -1988,6 +1999,7 @@
     const cacheAllProgressEl = document.querySelector('.cache-all-progress');
     const cacheAllLabelEl = document.querySelector('.cache-all-label');
     let currentDirectory = '/';
+    let selectedSceneDirectory = '';
     let cacheButtonIdleLabel = 'Cache';
     let cacheLabelAnimTimer = null;
     let cacheLabelAnimFrame = 0;
@@ -2076,6 +2088,7 @@
     function setDirectoryOptions(baseDir, directories) {
       if (!urlDirSelectEl) return;
       const normalizedBase = normalizeDirectoryUrl(baseDir);
+      const previousSelection = selectedSceneDirectory;
       urlDirSelectEl.innerHTML = '';
 
       const placeholder = document.createElement('option');
@@ -2100,7 +2113,15 @@
         }
       }
 
-      urlDirSelectEl.value = '';
+      if (previousSelection) {
+        const hasPrevious = Array.from(urlDirSelectEl.options).some(option => option.value === previousSelection);
+        urlDirSelectEl.value = hasPrevious ? previousSelection : '';
+        if (!hasPrevious) {
+          selectedSceneDirectory = '';
+        }
+      } else {
+        urlDirSelectEl.value = '';
+      }
     }
 
     async function refreshDirectoryDropdown(baseDir = currentDirectory) {
@@ -2168,16 +2189,25 @@
     async function cacheDirectoryScene(dirUrl) {
       const normalized = normalizeDirectoryUrl(dirUrl);
       const cacheKey = getSceneCacheKey(normalized);
+      const urls = await discoverSplatFiles(normalized);
+      if (urls.length === 0) return false;
+
       let sceneEntry = sceneCache.get(cacheKey);
       if (!sceneEntry) {
-        const urls = await discoverSplatFiles(normalized);
-        if (urls.length === 0) return false;
         sceneEntry = {
           dir: normalized,
-          frames: createSceneFramesFromUrls(urls),
+          frames: [],
         };
-        sceneCache.set(cacheKey, sceneEntry);
       }
+
+      const existingByUrl = new Map(sceneEntry.frames.map(frame => [frame.url, frame]));
+      sceneEntry.frames = urls.map(url => {
+        const existing = existingByUrl.get(url);
+        if (existing) return existing;
+        const [nextFrame] = createSceneFramesFromUrls([url]);
+        return nextFrame;
+      });
+      sceneCache.set(cacheKey, sceneEntry);
 
       for (let i = 0; i < sceneEntry.frames.length; i += 1) {
         await ensureFrameMesh(i, sceneEntry.frames);
@@ -2191,7 +2221,7 @@
       if (targets.length === 0) {
         cacheButtonIdleLabel = 'Cache';
         setCacheButtonState({
-          label: 'Cache all scenes (no scenes)',
+          label: 'No scenes found',
           progress: 0,
           disabled: false,
           isCaching: false,
@@ -2205,8 +2235,8 @@
         disabled: true,
         isCaching: true,
       });
-      let done = 0;
 
+      let done = 0;
       for (const dir of targets) {
         try {
           await cacheDirectoryScene(dir);
@@ -2238,6 +2268,7 @@
     urlDirSelectEl?.addEventListener('change', async () => {
       const selected = urlDirSelectEl.value;
       if (!selected) return;
+      selectedSceneDirectory = normalizeDirectoryUrl(selected);
       await loadFromUrlText(selected);
       await refreshDirectoryDropdown(currentDirectory);
     });
