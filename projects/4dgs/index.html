@@ -1072,11 +1072,18 @@
       return px >= rect[0] && px <= rect[0] + rect[2] && py >= rect[1] && py <= rect[1] + rect[3];
     }
 
-    function handleVrPanelClick(px, py) {
+    async function handleVrPanelClick(px, py) {
       // Play/Pause
       if (isInsideRect(px, py, vrBtnAreas.playPause)) {
         if (isPlaying) { setPlaying(false); }
-        else if (frames.length) { setPlaying(true); }
+        else if (frames.length) {
+          if (!loadedSplat || !loadedSplat.isInitialized) {
+            await showFrame(currentIndex);
+          }
+          const warmupDone = await warmupPlaybackAssets(frames);
+          if (!warmupDone) return;
+          setPlaying(true);
+        }
       }
       // Progress bar click (barX=630, barW=1080, full height)  — 3× scale
       else if (px >= 600 && px <= 1740 && py >= 0 && py <= VR_PANEL_H) {
@@ -1170,7 +1177,9 @@
     function onXrSelect(event) {
       if (!ENABLE_VR_CONTROL_PANEL) return;
       const hit = hitTestPanel(event.target);
-      if (hit) handleVrPanelClick(hit.px, hit.py);
+      if (hit) {
+        void handleVrPanelClick(hit.px, hit.py);
+      }
     }
     if (ENABLE_VR_CONTROL_PANEL) {
       xrController0.addEventListener('select', onXrSelect);
@@ -1348,8 +1357,43 @@
     const FRAME_LIMIT_MODE_SHORT = 'short';
     const FRAME_LIMIT_MODE_MEDIUM = 'medium';
     const FRAME_LIMIT_MODE_LONG = 'long';
+    const IS_IOS_DEVICE = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const XR_PRELOAD_AHEAD_FRAMES = 2;
+    const XR_MAX_RESIDENT_MESHES = 8;
+    const IOS_PRELOAD_AHEAD_FRAMES = 2;
+    const IOS_MAX_RESIDENT_MESHES = 6;
+    const DESKTOP_PRELOAD_AHEAD_FRAMES = 6;
+    const DESKTOP_MAX_RESIDENT_MESHES = 18;
     let maxFramesMode = FRAME_LIMIT_MODE_SHORT;
     let maxFramesToLoad = SHORT_MAX_FRAMES;
+    let playbackWarmupComplete = false;
+
+    function getRuntimeMemoryPolicy() {
+      if (renderer.xr.isPresenting) {
+        return {
+          preloadAheadFrames: XR_PRELOAD_AHEAD_FRAMES,
+          maxResidentMeshes: playbackWarmupComplete
+            ? Number.POSITIVE_INFINITY
+            : XR_MAX_RESIDENT_MESHES,
+          releaseBytesAfterMesh: true,
+        };
+      }
+      if (IS_IOS_DEVICE) {
+        return {
+          preloadAheadFrames: IOS_PRELOAD_AHEAD_FRAMES,
+          maxResidentMeshes: IOS_MAX_RESIDENT_MESHES,
+          releaseBytesAfterMesh: true,
+        };
+      }
+      return {
+        preloadAheadFrames: DESKTOP_PRELOAD_AHEAD_FRAMES,
+        maxResidentMeshes: maxFramesMode === FRAME_LIMIT_MODE_LONG
+          ? Number.POSITIVE_INFINITY
+          : DESKTOP_MAX_RESIDENT_MESHES,
+        releaseBytesAfterMesh: false,
+      };
+    }
 
     function parseFrameLimitMode(value) {
       const raw = String(value ?? '').trim().toLowerCase();
@@ -1370,6 +1414,7 @@
     }
 
     function applyFrameLimitMode(mode) {
+      playbackWarmupComplete = false;
       if (mode === FRAME_LIMIT_MODE_LONG) {
         maxFramesMode = FRAME_LIMIT_MODE_LONG;
         maxFramesToLoad = Number.POSITIVE_INFINITY;
@@ -1520,6 +1565,8 @@
 
       updateIndicator();
       updateProgress();
+      trimFrameMeshes(currentIndex, frames);
+      preloadFrames(currentIndex, frames);
 
       if (renderer.xr.isPresenting && vrFrameInitialized) {
         fitVrWindowToSplat();
@@ -1578,6 +1625,56 @@
       }
     }
 
+    function hasMissingFrameMeshes(frameList = frames) {
+      if (!Array.isArray(frameList) || frameList.length === 0) return false;
+      return frameList.some(frame => !frame?.mesh);
+    }
+
+    function cancelCachingTask() {
+      cachingTaskId += 1;
+      playbackWarmupComplete = false;
+      setCaching(false);
+    }
+
+    async function warmupPlaybackAssets(frameList = frames) {
+      if (!Array.isArray(frameList) || frameList.length === 0) return true;
+
+      const { maxResidentMeshes } = getRuntimeMemoryPolicy();
+      const shouldWarmupMeshes = renderer.xr.isPresenting || !Number.isFinite(maxResidentMeshes);
+
+      if (shouldWarmupMeshes && !hasMissingFrameMeshes(frameList)) {
+        if (frameList === frames) {
+          playbackWarmupComplete = true;
+        }
+        return true;
+      }
+
+      const taskId = ++cachingTaskId;
+      setCaching(true);
+      setCachingProgress(0);
+
+      try {
+        for (let i = 0; i < frameList.length; i += 1) {
+          if (taskId !== cachingTaskId) return false;
+          if (shouldWarmupMeshes) {
+            await ensureFrameMesh(i, frameList);
+          } else {
+            await ensureFrameBytes(i, frameList);
+          }
+          if (taskId !== cachingTaskId) return false;
+          setCachingProgress(((i + 1) / frameList.length) * 100);
+        }
+        if (taskId === cachingTaskId && shouldWarmupMeshes && frameList === frames) {
+          playbackWarmupComplete = true;
+        }
+        return taskId === cachingTaskId;
+      } finally {
+        if (taskId === cachingTaskId) {
+          setCaching(false);
+        }
+      }
+    }
+
     playBtn.addEventListener('click', async () => {
       if (isCaching) return;
       if (isPlaying) {
@@ -1588,6 +1685,8 @@
       if (!loadedSplat || !loadedSplat.isInitialized) {
         await showFrame(currentIndex);
       }
+      const warmupDone = await warmupPlaybackAssets(frames);
+      if (!warmupDone) return;
       setPlaying(true);
     });
     speedSelect.addEventListener('change', () => {
@@ -1761,6 +1860,8 @@
     }
 
     async function loadSplatFiles(files) {
+      cancelCachingTask();
+      const previousFrames = frames;
       const ordered = sortFilesByName(files);
       const loaded = ordered.map((f) => ({
         name: f.name,
@@ -1774,6 +1875,7 @@
       frames = limitFrames(loaded);
       currentIndex = 0;
       setPlaying(false);
+      releaseFrameListResources(previousFrames);
 
       showViewerInterface();
 
@@ -1781,7 +1883,6 @@
         await ensureFrameBytes(0, frames);
         await showFrame(0);
       }
-      preloadFrames(1, frames);
     }
 
     var loadedSplat;
@@ -1805,13 +1906,18 @@
       if (!frame || frame.bytes) return frame?.bytes ?? null;
       if (frame.bytesPromise) return frame.bytesPromise;
       frame.bytesPromise = (async () => {
-        if (frame.file) {
-          frame.bytes = new Uint8Array(await frame.file.arrayBuffer());
-        } else if (frame.url && !frame.bytes) {
-          const resp = await fetch(frame.url);
-          frame.bytes = new Uint8Array(await resp.arrayBuffer());
+        try {
+          if (frame.file) {
+            frame.bytes = new Uint8Array(await frame.file.arrayBuffer());
+          } else if (frame.url && !frame.bytes) {
+            const resp = await fetch(frame.url);
+            frame.bytes = new Uint8Array(await resp.arrayBuffer());
+          }
+          return frame.bytes;
+        } catch (e) {
+          frame.bytesPromise = null;
+          throw e;
         }
-        return frame.bytes;
       })();
       return frame.bytesPromise;
     }
@@ -1822,47 +1928,95 @@
       if (frame.mesh) return frame.mesh;
       if (frame.meshPromise) return frame.meshPromise;
       frame.meshPromise = (async () => {
-        if (!frame.bytes && (frame.file || frame.url)) {
-          await ensureFrameBytes(index, frameList);
+        try {
+          if (!frame.bytes && (frame.file || frame.url)) {
+            await ensureFrameBytes(index, frameList);
+          }
+          const mesh = await setSplatFile(
+            {
+            fileBytes: frame.bytes,
+            fileName: frame.name,
+            },
+            { updateOrbit: false },
+          );
+          mesh.visible = false;
+          frame.mesh = mesh;
+          if (getRuntimeMemoryPolicy().releaseBytesAfterMesh) {
+            frame.bytes = null;
+            frame.bytesPromise = null;
+          }
+          return mesh;
+        } catch (e) {
+          frame.meshPromise = null;
+          throw e;
         }
-        const mesh = await setSplatFile(
-          {
-          fileBytes: frame.bytes.slice(),
-          fileName: frame.name,
-          },
-          { updateOrbit: false },
-        );
-        mesh.visible = false;
-        frame.mesh = mesh;
-        return mesh;
       })();
       return frame.meshPromise;
     }
 
-    function preloadFrames(startIndex = 0, frameList = frames) {
+    function frameCircularDistance(target, center, total) {
+      const direct = Math.abs(target - center);
+      return Math.min(direct, total - direct);
+    }
+
+    function releaseFrameMesh(frame) {
+      if (!frame?.mesh) return;
+      const mesh = frame.mesh;
+      mesh.visible = false;
+      scene.remove(mesh);
+      if (typeof mesh.dispose === 'function') {
+        mesh.dispose();
+      }
+      frame.mesh = null;
+      frame.meshPromise = null;
+    }
+
+    function releaseFrameListResources(frameList, { releaseBytes = false } = {}) {
+      if (!Array.isArray(frameList) || frameList.length === 0) return;
+      for (const frame of frameList) {
+        releaseFrameMesh(frame);
+        if (releaseBytes) {
+          frame.bytes = null;
+          frame.bytesPromise = null;
+        }
+      }
+      if (loadedSplat && !frameList.includes(frames[currentIndex])) {
+        loadedSplat = null;
+      }
+    }
+
+    function trimFrameMeshes(activeIndex = currentIndex, frameList = frames) {
+      const { maxResidentMeshes } = getRuntimeMemoryPolicy();
+      if (!Number.isFinite(maxResidentMeshes)) return;
+      if (!Array.isArray(frameList) || frameList.length <= maxResidentMeshes) return;
+      const loaded = [];
+      for (let i = 0; i < frameList.length; i += 1) {
+        if (frameList[i]?.mesh) loaded.push(i);
+      }
+      if (loaded.length <= maxResidentMeshes) return;
+
+      loaded.sort((a, b) => frameCircularDistance(b, activeIndex, frameList.length) - frameCircularDistance(a, activeIndex, frameList.length));
+      while (loaded.length > maxResidentMeshes) {
+        const idx = loaded.shift();
+        if (idx == null || idx === activeIndex) continue;
+        releaseFrameMesh(frameList[idx]);
+      }
+    }
+
+    function preloadFrames(activeIndex = currentIndex, frameList = frames) {
+      if (!Array.isArray(frameList) || frameList.length === 0) return;
       const pending = [];
-      for (let i = startIndex; i < frameList.length; i += 1) {
-        if (!frameList[i].mesh && !frameList[i].meshPromise) {
+      const total = frameList.length;
+      const { preloadAheadFrames } = getRuntimeMemoryPolicy();
+      const preloadCount = Math.min(preloadAheadFrames, Math.max(0, total - 1));
+      for (let step = 1; step <= preloadCount; step += 1) {
+        const i = (activeIndex + step) % total;
+        if (!frameList[i]?.mesh && !frameList[i]?.meshPromise) {
           pending.push(ensureFrameMesh(i, frameList));
         }
       }
       if (pending.length > 0) {
-        const taskId = ++cachingTaskId;
-        let done = 0;
-        setCaching(true);
-        setCachingProgress(0);
-        for (const p of pending) {
-          p.finally(() => {
-            if (taskId !== cachingTaskId) return;
-            done += 1;
-            setCachingProgress((done / pending.length) * 100);
-          });
-        }
-        Promise.allSettled(pending).finally(() => {
-          if (taskId !== cachingTaskId) return;
-          setCachingProgress(100);
-          setCaching(false);
-        });
+        Promise.allSettled(pending);
       }
     }
 
@@ -1872,6 +2026,8 @@
 
 
     async function loadSceneByDirectory(dirUrl) {
+      cancelCachingTask();
+      const previousFrames = frames;
       const normalized = normalizeDirectoryUrl(dirUrl);
       const cacheKey = getSceneCacheKey(normalized);
       let sceneEntry = sceneCache.get(cacheKey);
@@ -1887,25 +2043,32 @@
       frames = sceneEntry.frames;
       currentIndex = 0;
       setPlaying(false);
+      if (previousFrames !== frames) {
+        releaseFrameListResources(previousFrames);
+      }
       showViewerInterface();
 
       if (frames.length > 0) {
         await showFrame(0);
       }
-      preloadFrames(1, frames);
     }
 
 
     async function loadSplatURL(splatURL) {
+      cancelCachingTask();
+      const previousFrames = frames;
       const fileName = splatURL.split("/").pop().split("?")[0];
       frames = [{ url: splatURL, name: fileName }];
       currentIndex = 0;
       setPlaying(false);
+      releaseFrameListResources(previousFrames);
       showViewerInterface();
       await showFrame(0);
     }
 
     async function loadSplatURLs(urls) {
+      cancelCachingTask();
+      const previousFrames = frames;
       frames = limitFrames(urls).map(u => ({
         url: u,
         name: u.split('/').pop().split('?')[0],
@@ -1913,11 +2076,11 @@
       }));
       currentIndex = 0;
       setPlaying(false);
+      releaseFrameListResources(previousFrames);
       showViewerInterface();
       if (frames.length > 0) {
         await showFrame(0);
       }
-      preloadFrames(1, frames);
     }
 
     // Expand a URL pattern with {start..end} into an array of URLs
@@ -2210,7 +2373,11 @@
       sceneCache.set(cacheKey, sceneEntry);
 
       for (let i = 0; i < sceneEntry.frames.length; i += 1) {
-        await ensureFrameMesh(i, sceneEntry.frames);
+        await ensureFrameBytes(i, sceneEntry.frames);
+        if (IS_IOS_DEVICE) {
+          sceneEntry.frames[i].bytes = null;
+          sceneEntry.frames[i].bytesPromise = null;
+        }
       }
       return true;
     }

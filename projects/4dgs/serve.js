@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -53,15 +54,19 @@ const requestHandler = async (req, res) => {
   }
 };
 
-const useHttps = ['1', 'true', 'yes'].includes(String(process.env.HTTPS || '').toLowerCase());
 const certPath = process.env.HTTPS_CERT || path.join(root, 'certs', 'localhost.pem');
 const keyPath = process.env.HTTPS_KEY || path.join(root, 'certs', 'localhost-key.pem');
+const hasCertFiles = fsSync.existsSync(certPath) && fsSync.existsSync(keyPath);
+const httpsEnv = String(process.env.HTTPS || '').toLowerCase();
+const useHttps = httpsEnv
+  ? ['1', 'true', 'yes'].includes(httpsEnv)
+  : hasCertFiles;
 
 let server;
 let protocol = 'http';
 
 if (useHttps) {
-  if (!fsSync.existsSync(certPath) || !fsSync.existsSync(keyPath)) {
+  if (!hasCertFiles) {
     console.error('HTTPS certificate files not found.');
     console.error(`Expected cert: ${certPath}`);
     console.error(`Expected key : ${keyPath}`);
@@ -78,9 +83,38 @@ if (useHttps) {
   protocol = 'https';
 } else {
   server = http.createServer(requestHandler);
+  if (!httpsEnv && !hasCertFiles) {
+    console.warn('No HTTPS certs found, fallback to HTTP.');
+    console.warn(`Place cert files at:`);
+    console.warn(`- ${certPath}`);
+    console.warn(`- ${keyPath}`);
+  }
 }
 
 const port = Number(process.env.PORT || 3000);
-server.listen(port, () => {
-  console.log(`Serving ${root} at ${protocol}://localhost:${port}`);
+const host = process.env.HOST || '0.0.0.0';
+
+server.listen(port, host, () => {
+  console.log(`Serving ${root}`);
+  console.log(`- Local:   ${protocol}://localhost:${port}`);
+
+  if (host === '0.0.0.0' || host === '::') {
+    const nets = os.networkInterfaces();
+    const lanIps = new Set();
+
+    for (const iface of Object.values(nets)) {
+      if (!iface) continue;
+      for (const addr of iface) {
+        if (addr.family === 'IPv4' && !addr.internal) {
+          lanIps.add(addr.address);
+        }
+      }
+    }
+
+    for (const ip of lanIps) {
+      console.log(`- Network: ${protocol}://${ip}:${port}`);
+    }
+  } else {
+    console.log(`- Host:    ${protocol}://${host}:${port}`);
+  }
 });
