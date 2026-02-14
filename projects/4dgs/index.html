@@ -1,0 +1,2328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spark • Viewer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      height: 100vh;
+      background-color: rgb(43, 41, 40);
+      margin: 0;
+      padding: 0;
+      position: relative;
+      z-index: 3;
+    }
+
+    .drop-container {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .spark-canvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .invisible {
+      display: none;
+    }
+
+    .logo {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 2;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 6px 8px;
+      border-radius: 10px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(10px) saturate(140%);
+      -webkit-backdrop-filter: blur(10px) saturate(140%);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    .logo img {
+      width: 80px;
+    }
+
+    .hero-logo {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .hero-title {
+      margin: 0 0 1.5rem 0;
+      font-size: clamp(1.45rem, 2.8vw, 2.2rem);
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      color: rgba(255, 255, 255, 0.95);
+      text-align: center;
+      text-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    .hero-logo img {
+      width: 350px;
+      height: auto;
+      margin-bottom: 1rem;
+    }
+
+    .url-select,
+    .frame-limit-select,
+    .drop-zone {
+      width: 100%;
+      max-width: 300px;
+      margin: 0.5rem auto;
+      padding: 0.75rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      text-align: center;
+    }
+
+    .drop-zone {
+      max-width: 500px;
+      padding-top: 4rem;
+      padding-bottom: 4rem;
+    }
+
+    .url-select {
+      background-color: rgb(47, 47, 47);
+      border: none;
+      color: #fff;
+      text-align: center;
+      cursor: pointer;
+      font-family: system-ui, sans-serif;
+      font-size: 1rem;
+      font-weight: 400;
+      appearance: none;
+      -webkit-appearance: none;
+      text-align-last: center;
+      -moz-text-align-last: center;
+      display: block;
+    }
+
+    .url-form {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .url-row {
+      width: 100%;
+      max-width: 500px;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 10px;
+      margin: 0.5rem auto;
+    }
+
+    .url-row .url-select,
+    .url-row .frame-limit-wrap {
+      width: 100%;
+      max-width: none;
+      margin: 0;
+    }
+
+    .frame-limit-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border-radius: 6px;
+      background-color: rgb(47, 47, 47);
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      font-size: 1rem;
+      font-weight: 400;
+      overflow: hidden;
+    }
+
+    .frame-limit-select {
+      background-color: transparent;
+      border: none;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      font-size: 1rem;
+      font-weight: 400;
+      display: block;
+      width: 100%;
+      text-align: center;
+      text-align-last: center;
+      -moz-text-align-last: center;
+      padding: 0.75rem;
+      margin: 0;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    .cache-all-button {
+      width: 100%;
+      max-width: 500px;
+      margin: 0.5rem auto 0.25rem auto;
+      padding: 0.75rem;
+      border: none;
+      border-radius: 6px;
+      background-color: rgb(60, 60, 60);
+      color: #fff;
+      font-size: 0.95rem;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .cache-all-progress {
+      position: absolute;
+      inset: 0;
+      width: 0%;
+      background: rgba(255, 255, 255, 0.18);
+      transition: width 0.18s ease;
+      pointer-events: none;
+    }
+
+    .cache-all-button.is-caching .cache-all-progress {
+      background-image: linear-gradient(
+        120deg,
+        rgba(255, 255, 255, 0.12) 0%,
+        rgba(255, 255, 255, 0.28) 35%,
+        rgba(255, 255, 255, 0.12) 70%
+      );
+      background-size: 200% 100%;
+      animation: cacheProgressSweep 1s linear infinite;
+    }
+
+    @keyframes cacheProgressSweep {
+      from {
+        background-position: 200% 0;
+      }
+      to {
+        background-position: 0 0;
+      }
+    }
+
+    .cache-all-label {
+      position: relative;
+      z-index: 1;
+    }
+
+    .cache-all-label-text {
+      display: inline;
+    }
+
+    .cache-all-label-dots {
+      display: inline-block;
+      width: 1.6em;
+      text-align: left;
+    }
+
+    .cache-all-button:hover {
+      background-color: rgb(90, 90, 90);
+    }
+
+    .cache-all-button:disabled {
+      opacity: 0.7;
+      cursor: default;
+    }
+
+    .drop-zone {
+      border: 1px dashed #666;
+      color: rgb(89, 89, 89);
+      background-color: rgb(47, 47, 47);
+      cursor: pointer;
+    }
+
+    .drop-zone.dragover {
+      border: 1px dashed #aaa;
+      color: rgb(170, 170, 170);
+    }
+
+    @media (min-width: 600px) {
+      .url-select,
+      .frame-limit-wrap,
+      .frame-limit-select,
+      .drop-zone {
+        font-size: 1.1rem;
+      }
+
+      .cache-all-button {
+        font-size: 1rem;
+      }
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .controls {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: rgba(28, 28, 28, 0.7);
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(8px);
+      z-index: 2;
+      width: 100%;
+      pointer-events: auto;
+    }
+
+    .controls .controls-left,
+    .controls .controls-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .controls .controls-right {
+      min-width: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      row-gap: 8px;
+    }
+
+    .controls .controls-right > * {
+      flex-shrink: 0;
+    }
+
+    .controls .play-toggle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1em;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .controls .caching-percent {
+      display: none;
+      min-width: 44px;
+      font-size: 0.8em;
+      color: rgba(255, 255, 255, 0.8);
+      font-variant-numeric: tabular-nums;
+      text-align: left;
+    }
+
+    .controls .caching-percent.is-visible {
+      display: inline-block;
+    }
+
+    .controls .play-toggle.is-loading {
+      cursor: default;
+      opacity: 0.7;
+    }
+
+    .controls .play-toggle .loading-spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-top-color: #fff;
+      animation: spin 0.9s linear infinite;
+    }
+
+    .controls .play-toggle.is-loading .play-icon {
+      display: none;
+    }
+
+    .controls .play-toggle.is-loading .loading-spinner {
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .controls .play-toggle .play-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      font-size: 1.1em;
+      letter-spacing: -2px;
+    }
+
+    .controls .progress-wrap {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .controls .fov-wrap {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .controls .fov-label {
+      font-size: 0.8em;
+      color: rgba(255, 255, 255, 0.7);
+      white-space: nowrap;
+    }
+
+    .controls .fov-value {
+      min-width: 38px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 0.85em;
+    }
+
+    .controls .fov-slider {
+      width: 90px;
+      accent-color: #fff;
+    }
+
+    .controls .time {
+      font-size: 0.82em;
+      color: rgba(255, 255, 255, 0.7);
+      min-width: 44px;
+      text-align: center;
+    }
+
+    .controls .progress {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.15);
+      outline: none;
+    }
+
+    .controls .progress::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+    }
+
+    .controls .progress::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      border: none;
+      cursor: pointer;
+    }
+
+    .viewer-window {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+      pointer-events: none;
+      padding: clamp(16px, 3vw, 48px);
+    }
+
+    .viewer-window .viewer-stack {
+      width: min(75vw, 960px, calc(min(75vh, 630px) * 16 / 9));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      margin: auto;
+      pointer-events: auto;
+    }
+
+    .viewer-window .window-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      height: auto;
+      background: #111;
+      border-radius: clamp(16px, 2.2vw, 28px);
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+      pointer-events: auto;
+    }
+
+    .controls-right #VRButton {
+      position: static !important;
+      left: auto !important;
+      bottom: auto !important;
+      width: auto !important;
+      min-width: 80px;
+      padding: 0 6px !important;
+      border: none !important;
+      border-radius: 10px !important;
+      background-color: rgba(255, 255, 255, 0.12) !important;
+      opacity: 1 !important;
+      font-size: 0 !important;
+      line-height: 1;
+      height: 30px !important;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      box-shadow: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+
+    .controls-right #VRButton:hover {
+      background-color: rgb(90, 90, 90) !important;
+    }
+
+    .controls-right #VRButton::before {
+      content: 'VR';
+      font-size: 0.95rem;
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: 0.02em;
+    }
+
+    .controls button {
+      background-color: rgba(255, 255, 255, 0.12);
+      border: none;
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+
+    .controls button:hover {
+      background-color: rgb(90, 90, 90);
+    }
+
+    .controls select {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.85em;
+      cursor: pointer;
+    }
+
+    .controls .controls-right > .speed-select,
+    .controls .controls-right > .import-button,
+    .controls .controls-right > .reset-button,
+    .controls .controls-right > #VRButton {
+      min-width: 80px;
+      height: 30px;
+      padding: 0 6px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      text-align: center;
+      font-size: 0.74em;
+    }
+
+    .controls .controls-right > .speed-select {
+      width: 80px;
+      text-align: center;
+      text-align-last: center;
+      -moz-text-align-last: center;
+    }
+
+    .frame-indicator {
+      font-size: 0.85em;
+      color: rgba(255, 255, 255, 0.65);
+      padding: 0 6px;
+      white-space: nowrap;
+    }
+
+    .frame-indicator-progress {
+      display: none;
+      min-width: 52px;
+      text-align: right;
+      padding-right: 0;
+    }
+
+    @media (max-width: 1100px) {
+      .controls {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-areas:
+          'left progress'
+          'right right';
+        gap: 8px 10px;
+        padding: 8px 10px;
+      }
+
+      .controls .controls-left {
+        grid-area: left;
+      }
+
+      .controls .progress-wrap {
+        grid-area: progress;
+      }
+
+      .controls .controls-right {
+        grid-area: right;
+      }
+
+      .controls .controls-left {
+        justify-self: start;
+      }
+
+      .controls .controls-right {
+        width: 100%;
+        flex-wrap: wrap;
+        justify-content: space-evenly;
+        gap: 10px 12px;
+      }
+
+      .controls .progress-wrap {
+        width: 100%;
+        min-width: 0;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
+      }
+
+      .controls .frame-indicator-progress {
+        display: inline-block;
+        font-size: 0.82em;
+      }
+
+      .controls .frame-indicator-actions {
+        display: none;
+      }
+
+      .controls .time {
+        min-width: 54px;
+      }
+
+      .controls .fov-slider {
+        width: min(120px, 22vw);
+      }
+    }
+
+    @media (max-width: 760px) {
+      .controls {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-areas:
+          'left progress'
+          'right right';
+        border-radius: 12px;
+        padding: 8px;
+        gap: 6px;
+      }
+
+      .controls .controls-left {
+        justify-content: flex-start;
+      }
+
+      .controls .play-toggle {
+        width: 36px;
+        height: 36px;
+      }
+
+      .controls .controls-right {
+        width: 100%;
+        display: flex;
+        flex-wrap: nowrap;
+        justify-content: stretch;
+        gap: 6px;
+      }
+
+      .controls button,
+      .controls select {
+        font-size: 0.82em;
+        padding: 5px 10px;
+      }
+
+      .controls .controls-right > .speed-select,
+      .controls .controls-right > .import-button,
+      .controls .controls-right > .reset-button,
+      .controls .controls-right > #VRButton {
+        flex: 1 1 0;
+        min-width: 0;
+        width: 100%;
+        height: 28px;
+        padding: 0 6px;
+      }
+
+      .controls .controls-right > #VRButton {
+        min-width: 0 !important;
+        width: 100% !important;
+        height: 28px !important;
+        padding: 0 6px !important;
+      }
+
+      .controls .progress-wrap {
+        grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+        gap: 4px;
+      }
+
+      .controls .frame-indicator-progress {
+        min-width: 0;
+        padding: 0;
+        font-size: 0.74em;
+      }
+
+      .controls .fov-wrap {
+        flex: 1 1 100%;
+        justify-content: center;
+        gap: 6px;
+        padding: 4px 6px;
+      }
+
+      .controls .fov-slider {
+        width: min(140px, 42vw);
+      }
+
+      .controls .time {
+        min-width: 0;
+        font-size: 0.76em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/build/three.module.js",
+        "three/addons/": "./vendor/three/examples/jsm/",
+        "@sparkjsdev/spark": "./dist/spark.module.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { SplatMesh, transcodeSpz, SparkControls, SparkRenderer, VRButton } from "@sparkjsdev/spark";
+
+    const sparkCanvasEl = document.querySelector(".spark-canvas");
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 1000);
+    camera.position.set(0, 0, 0);
+    const renderer = new THREE.WebGLRenderer({canvas: sparkCanvasEl});
+    const frameEl = document.querySelector('.window-frame');
+    const width = frameEl.clientWidth;
+    const height = frameEl.clientHeight;
+    renderer.setSize(width, height, false);
+
+    // VR mode support
+    const localFrame = new THREE.Group();
+    scene.add(localFrame);
+
+    const spark = new SparkRenderer({ renderer, maxStdDev: Math.sqrt(5) });
+    localFrame.add(spark);
+    scene.add(camera);
+
+    const vrButton = VRButton.createButton(renderer, {
+      optionalFeatures: ["hand-tracking"],
+    });
+
+    // ── VR 3D Control Panel ──
+    // Canvas-textured plane rendered inside the VR scene
+    const ENABLE_VR_CONTROL_PANEL = false;
+    const DEFAULT_WIN_W = 1.92, DEFAULT_WIN_H = 1.080;   // window opening in world meters
+    let winW = DEFAULT_WIN_W;
+    let winH = DEFAULT_WIN_H;
+    const VR_TARGET_VISIBLE_AREA = 0.8;
+    const VR_TARGET_VISIBLE_AXIS = Math.sqrt(VR_TARGET_VISIBLE_AREA);
+    const VR_MIN_WIN_W = 0.9;
+    const VR_MAX_WIN_W = 3.0;
+    const VR_MIN_WIN_H = 0.5;
+    const VR_MAX_WIN_H = 1.8;
+    const VR_PANEL_W = 4200, VR_PANEL_H = 300;
+    const vrPanelCanvas = document.createElement('canvas');
+    vrPanelCanvas.width = VR_PANEL_W;
+    vrPanelCanvas.height = VR_PANEL_H;
+    const vrPanelCtx = vrPanelCanvas.getContext('2d');
+    const vrPanelTexture = new THREE.CanvasTexture(vrPanelCanvas);
+    vrPanelTexture.minFilter = THREE.LinearFilter;
+    vrPanelTexture.magFilter = THREE.LinearFilter;
+    vrPanelTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const vrPanelMaterial = new THREE.MeshBasicMaterial({
+      map: vrPanelTexture, transparent: true, side: THREE.DoubleSide, depthTest: false,
+    });
+    const vrPanelMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(DEFAULT_WIN_W, DEFAULT_WIN_W * (VR_PANEL_H / VR_PANEL_W)),
+      vrPanelMaterial,
+    );
+    vrPanelMesh.renderOrder = 9999;
+    vrPanelMesh.frustumCulled = false;
+    vrPanelMesh.visible = ENABLE_VR_CONTROL_PANEL;
+    scene.add(vrPanelMesh);
+
+    // ── VR Window Frame (mask) ──
+    // A large white plane with a transparent rounded-rect hole in the center.
+    // Outside the hole = opaque white (blocks 3DGS), inside the hole = transparent (shows 3DGS).
+    const MASK_CANVAS_W = 3200, MASK_CANVAS_H = 2000;
+    const MASK_PLANE_W = 10.0, MASK_PLANE_H = 6.25;  // plane world size (matches canvas aspect 1600:1000)
+
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = MASK_CANVAS_W;
+    maskCanvas.height = MASK_CANVAS_H;
+    const maskCtx = maskCanvas.getContext('2d');
+
+    const maskTexture = new THREE.CanvasTexture(maskCanvas);
+    maskTexture.minFilter = THREE.LinearFilter;
+    maskTexture.magFilter = THREE.LinearFilter;
+    maskTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    maskTexture.generateMipmaps = false;
+    const maskMaterial = new THREE.MeshBasicMaterial({
+      map: maskTexture,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const vrWindowMask = new THREE.Mesh(
+      new THREE.PlaneGeometry(MASK_PLANE_W, MASK_PLANE_H),
+      maskMaterial,
+    );
+    vrWindowMask.renderOrder = 9998;
+    vrWindowMask.frustumCulled = false;
+    vrWindowMask.visible = false;
+
+    // Container group for the window
+    const vrFrameGroup = new THREE.Group();
+    vrFrameGroup.visible = false;
+    scene.add(vrFrameGroup);
+
+    const vrBounds = new THREE.Box3();
+    const vrSplatCenterWorld = new THREE.Vector3();
+    const vrSplatCenterInFrame = new THREE.Vector3();
+    const vrFrameRight = new THREE.Vector3();
+    const vrFrameUp = new THREE.Vector3();
+    const vrCorner = new THREE.Vector3();
+
+    const FRAME_DIST = 2.0;
+    vrWindowMask.position.set(0, 0, -FRAME_DIST);
+    vrFrameGroup.add(vrWindowMask);
+
+    // Place the control panel just below the window opening, fixed to the frame
+    vrPanelMesh.position.set(0, -(DEFAULT_WIN_H / 2) - 0.14, -FRAME_DIST + 0.01);
+    vrFrameGroup.add(vrPanelMesh);
+
+    // Button hit-areas in canvas pixel coords  [x, y, w, h]
+    const vrBtnAreas = {
+      playPause: [42,  30, 240, 240],
+      speedDown: [2574, 30, 270, 240],
+      speedUp:   [2574, 30, 270, 240],   // same rect, will cycle
+      reset:     [2898, 30, 270, 240],
+    };
+    const speedOptions = [0.5, 1, 1.5, 2, 3];
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function drawVrWindowMask(openW, openH) {
+      winW = Math.max(VR_MIN_WIN_W, Math.min(VR_MAX_WIN_W, Number(openW) || DEFAULT_WIN_W));
+      winH = Math.max(VR_MIN_WIN_H, Math.min(VR_MAX_WIN_H, Number(openH) || DEFAULT_WIN_H));
+
+      const holePixW = (winW / MASK_PLANE_W) * MASK_CANVAS_W;
+      const holePixH = (winH / MASK_PLANE_H) * MASK_CANVAS_H;
+      const holeX = (MASK_CANVAS_W - holePixW) / 2;
+      const holeY = (MASK_CANVAS_H - holePixH) / 2;
+      const holeRad = Math.max(20, Math.min(120, Math.min(holePixW, holePixH) * 0.12));
+
+      // 1) Fill entire canvas white (opaque)
+      maskCtx.clearRect(0, 0, MASK_CANVAS_W, MASK_CANVAS_H);
+      maskCtx.fillStyle = '#ffffff';
+      maskCtx.fillRect(0, 0, MASK_CANVAS_W, MASK_CANVAS_H);
+
+      // 2) Cut out a transparent rounded-rect hole in the center
+      maskCtx.globalCompositeOperation = 'destination-out';
+      maskCtx.fillStyle = '#000';
+      roundRect(maskCtx, holeX, holeY, holePixW, holePixH, holeRad);
+      maskCtx.fill();
+      maskCtx.globalCompositeOperation = 'source-over';
+
+      // 3) Draw a subtle border around the window opening
+      maskCtx.strokeStyle = 'rgba(180, 180, 180, 0.6)';
+      maskCtx.lineWidth = 3 * (MASK_CANVAS_W / 1600);
+      roundRect(maskCtx, holeX, holeY, holePixW, holePixH, holeRad);
+      maskCtx.stroke();
+
+      // 4) Outer shadow / vignette around the hole
+      maskCtx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+      maskCtx.shadowBlur = 30 * (MASK_CANVAS_W / 1600);
+      maskCtx.strokeStyle = 'rgba(0,0,0,0)';
+      maskCtx.lineWidth = 1;
+      roundRect(maskCtx, holeX - 1, holeY - 1, holePixW + 2, holePixH + 2, holeRad);
+      maskCtx.stroke();
+      maskCtx.shadowBlur = 0;
+
+      maskTexture.needsUpdate = true;
+
+      const panelScale = winW / DEFAULT_WIN_W;
+      vrPanelMesh.scale.set(panelScale, panelScale, 1);
+      vrPanelMesh.position.set(0, -(winH / 2) - 0.14, -FRAME_DIST + 0.01);
+    }
+
+    drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
+
+    function drawVrPanel() {
+      const ctx = vrPanelCtx;
+      const W = VR_PANEL_W, H = VR_PANEL_H;
+      const S = 3;  // scale factor (canvas is 3× the logical layout)
+      ctx.clearRect(0, 0, W, H);
+
+      // Background pill
+      ctx.fillStyle = 'rgba(28, 28, 28, 0.82)';
+      roundRect(ctx, 0, 0, W, H, H / 2);
+      ctx.fill();
+
+      const cy = H / 2; // vertical center
+
+      // ── Play / Pause button (circle) ──
+      ctx.fillStyle = 'rgba(255,255,255,0.14)';
+      ctx.beginPath();
+      ctx.arc(54*S, cy, 36*S, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ccc';
+      ctx.font = `${28*S}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(isPlaying ? '❚❚' : '▶', 54*S, cy);
+
+      // ── Current time ──
+      const total = frames.length || 0;
+      const totalSeconds = total > 0 ? total / fps : 0;
+      const currentSeconds = total > 0 ? currentIndex / fps : 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = `${26*S}px sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.fillText(formatTime(currentSeconds), 106*S, cy);
+
+      // ── Progress bar ──
+      const barX = 210*S, barY = cy - 4*S, barW = 360*S, barH = 8*S, barR = 4*S;
+      // Track
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      roundRect(ctx, barX, barY, barW, barH, barR);
+      ctx.fill();
+      // Fill
+      const progress = total > 1 ? currentIndex / (total - 1) : 0;
+      if (progress > 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        roundRect(ctx, barX, barY, Math.max(barH, barW * progress), barH, barR);
+        ctx.fill();
+      }
+      // Thumb
+      const thumbX = barX + barW * progress;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(thumbX, cy, 10*S, 0, Math.PI * 2);
+      ctx.fill();
+
+      // ── Total time ──
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = `${26*S}px sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.fillText(formatTime(totalSeconds), 586*S, cy);
+
+      // ── Frame info ──
+      const idx = total ? (currentIndex + 1) : 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.65)';
+      ctx.font = `${26*S}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(`${idx}/${total}`, 740*S, cy);
+
+      // ── Speed selector (pill) ──
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      roundRect(ctx, 858*S, 18*S, 90*S, H - 36*S, 14*S);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.font = `${26*S}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(`${speedMultiplier}x`, 903*S, cy - 2*S);
+      // Chevron
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.font = `${18*S}px sans-serif`;
+      ctx.fillText('▾', 935*S, cy + 2*S);
+
+      // ── Reset button ──
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      roundRect(ctx, 966*S, 18*S, 90*S, H - 36*S, 14*S);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.font = `${24*S}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('Reset', 1011*S, cy);
+
+      vrPanelTexture.needsUpdate = true;
+    }
+
+    // ── XR Controllers + Raycasting ──
+    const xrController0 = renderer.xr.getController(0);
+    const xrController1 = renderer.xr.getController(1);
+    scene.add(xrController0);
+    scene.add(xrController1);
+
+    // Visible ray lines
+    const rayGeom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, -2),
+    ]);
+    const rayMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+    const ray0 = new THREE.Line(rayGeom.clone(), rayMat.clone());
+    const ray1 = new THREE.Line(rayGeom.clone(), rayMat.clone());
+    ray0.visible = false;
+    ray1.visible = false;
+    xrController0.add(ray0);
+    xrController1.add(ray1);
+
+    // Pointer dot (highlight on panel)
+    const dotGeom = new THREE.SphereGeometry(0.006, 8, 8);
+    const dotMat = new THREE.MeshBasicMaterial({ color: 0x44aaff, depthTest: false });
+    const pointerDot = new THREE.Mesh(dotGeom, dotMat);
+    pointerDot.renderOrder = 10001;
+    pointerDot.frustumCulled = false;
+    pointerDot.visible = false;
+    scene.add(pointerDot);
+
+    const vrRaycaster = new THREE.Raycaster();
+    const _tempMatrix = new THREE.Matrix4();
+
+    function hitTestPanel(controller) {
+      _tempMatrix.identity().extractRotation(controller.matrixWorld);
+      vrRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+      vrRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(_tempMatrix);
+      const hits = vrRaycaster.intersectObject(vrPanelMesh);
+      if (hits.length > 0) {
+        const uv = hits[0].uv;
+        if (uv) {
+          return {
+            point: hits[0].point,
+            px: uv.x * VR_PANEL_W,
+            py: (1 - uv.y) * VR_PANEL_H,
+          };
+        }
+      }
+      return null;
+    }
+
+    function isInsideRect(px, py, rect) {
+      return px >= rect[0] && px <= rect[0] + rect[2] && py >= rect[1] && py <= rect[1] + rect[3];
+    }
+
+    function handleVrPanelClick(px, py) {
+      // Play/Pause
+      if (isInsideRect(px, py, vrBtnAreas.playPause)) {
+        if (isPlaying) { setPlaying(false); }
+        else if (frames.length) { setPlaying(true); }
+      }
+      // Progress bar click (barX=630, barW=1080, full height)  — 3× scale
+      else if (px >= 600 && px <= 1740 && py >= 0 && py <= VR_PANEL_H) {
+        const total = frames.length;
+        if (total > 1) {
+          const frac = Math.max(0, Math.min(1, (px - 630) / 1080));
+          const idx = Math.round(frac * (total - 1));
+          setPlaying(false);
+          showFrame(idx);
+        }
+      }
+      // Speed cycle
+      else if (isInsideRect(px, py, vrBtnAreas.speedDown)) {
+        const idx = speedOptions.indexOf(speedMultiplier);
+        const next = (idx + 1) % speedOptions.length;
+        speedMultiplier = speedOptions[next];
+        speedSelect.value = String(speedMultiplier);
+        if (isPlaying) { stopPlayback(); startPlayback(); }
+      }
+      // Reset
+      else if (isInsideRect(px, py, vrBtnAreas.reset)) {
+        resetViewState();
+      }
+    }
+
+    function centerSplatInVrWindow() {
+      if (!loadedSplat) return;
+      vrBounds.setFromObject(loadedSplat);
+      if (vrBounds.isEmpty()) return;
+
+      vrBounds.getCenter(vrSplatCenterWorld);
+      vrSplatCenterInFrame.copy(vrSplatCenterWorld);
+      vrFrameGroup.worldToLocal(vrSplatCenterInFrame);
+
+      const dx = vrSplatCenterInFrame.x;
+      const dy = vrSplatCenterInFrame.y;
+      if (Math.abs(dx) + Math.abs(dy) < 1e-6) return;
+
+      vrFrameRight.set(1, 0, 0).applyQuaternion(vrFrameGroup.quaternion);
+      vrFrameUp.set(0, 1, 0).applyQuaternion(vrFrameGroup.quaternion);
+      localFrame.position.addScaledVector(vrFrameRight, -dx);
+      localFrame.position.addScaledVector(vrFrameUp, -dy);
+    }
+
+    function fitVrWindowToSplat() {
+      if (!loadedSplat) {
+        drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
+        return;
+      }
+
+      centerSplatInVrWindow();
+
+      vrBounds.setFromObject(loadedSplat);
+      if (vrBounds.isEmpty()) {
+        drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
+        return;
+      }
+
+      const xs = [vrBounds.min.x, vrBounds.max.x];
+      const ys = [vrBounds.min.y, vrBounds.max.y];
+      const zs = [vrBounds.min.z, vrBounds.max.z];
+
+      let minX = Number.POSITIVE_INFINITY;
+      let maxX = Number.NEGATIVE_INFINITY;
+      let minY = Number.POSITIVE_INFINITY;
+      let maxY = Number.NEGATIVE_INFINITY;
+
+      for (const x of xs) {
+        for (const y of ys) {
+          for (const z of zs) {
+            vrCorner.set(x, y, z);
+            vrFrameGroup.worldToLocal(vrCorner);
+            minX = Math.min(minX, vrCorner.x);
+            maxX = Math.max(maxX, vrCorner.x);
+            minY = Math.min(minY, vrCorner.y);
+            maxY = Math.max(maxY, vrCorner.y);
+          }
+        }
+      }
+
+      const spanX = Math.max(1e-4, maxX - minX);
+      const spanY = Math.max(1e-4, maxY - minY);
+      const desiredW = spanX * VR_TARGET_VISIBLE_AXIS;
+      const desiredH = spanY * VR_TARGET_VISIBLE_AXIS;
+      drawVrWindowMask(desiredW, desiredH);
+
+      // Recenter once more after changing aperture size.
+      centerSplatInVrWindow();
+    }
+
+    function onXrSelect(event) {
+      if (!ENABLE_VR_CONTROL_PANEL) return;
+      const hit = hitTestPanel(event.target);
+      if (hit) handleVrPanelClick(hit.px, hit.py);
+    }
+    if (ENABLE_VR_CONTROL_PANEL) {
+      xrController0.addEventListener('select', onXrSelect);
+      xrController1.addEventListener('select', onXrSelect);
+    }
+
+    let shouldResetViewAfterVrExit = false;
+    let vrFrameInitialized = false;
+    renderer.xr.addEventListener('sessionstart', () => {
+      if (vrButton) {
+        vrButton.setAttribute('aria-label', 'Exit VR');
+        vrButton.setAttribute('title', 'Exit VR');
+      }
+      vrPanelMesh.visible = ENABLE_VR_CONTROL_PANEL;
+      vrFrameGroup.visible = true;
+      vrWindowMask.visible = true;
+      ray0.visible = ENABLE_VR_CONTROL_PANEL;
+      ray1.visible = ENABLE_VR_CONTROL_PANEL;
+      vrFrameInitialized = false;
+      vrFrameGroup.position.set(0, 0, 0);
+      vrFrameGroup.rotation.set(0, 0, 0);
+      localFrame.position.set(0, 0, 0);
+      localFrame.rotation.set(0, 0, 0);
+      localFrame.scale.set(1, 1, 1);
+      drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
+      if (ENABLE_VR_CONTROL_PANEL) {
+        drawVrPanel();
+      }
+    });
+    renderer.xr.addEventListener('sessionend', () => {
+      if (vrButton) {
+        vrButton.setAttribute('aria-label', 'Enter VR');
+        vrButton.setAttribute('title', 'Enter VR');
+      }
+      vrPanelMesh.visible = false;
+      vrFrameGroup.visible = false;
+      vrWindowMask.visible = false;
+      ray0.visible = false;
+      ray1.visible = false;
+      pointerDot.visible = false;
+      localFrame.position.set(0, 0, 0);
+      localFrame.rotation.set(0, 0, 0);
+      localFrame.scale.set(1, 1, 1);
+      vrFrameInitialized = false;
+      resetViewState();
+      shouldResetViewAfterVrExit = true;
+    });
+
+    const controls = new SparkControls({ canvas: sparkCanvasEl });
+    controls.fpsMovement.rotateSpeed = 0.6;
+    controls.fpsMovement.moveSpeed = 8.0;
+    controls.fpsMovement.keycodeMoveMapping = {
+      KeyW: new THREE.Vector3(0, 0, -1),
+      KeyS: new THREE.Vector3(0, 0, 1),
+      KeyA: new THREE.Vector3(-1, 0, 0),
+      KeyD: new THREE.Vector3(1, 0, 0),
+      KeyR: new THREE.Vector3(0, 1, 0),
+      KeyF: new THREE.Vector3(0, -1, 0),
+    };
+    controls.fpsMovement.keycodeRotateMapping = {};
+
+    const orbitTarget = new THREE.Vector3(0, 0, 0);
+    let orbitYaw = 0;
+    let orbitPitch = 0;
+    let orbitDistance = 1.5;
+    const orbitSpeed = 0.005;
+    const lastCameraPos = new THREE.Vector3().copy(camera.position);
+    let initialOrbitTarget = new THREE.Vector3(0, 0, 0);
+    let initialOrbitYaw = 0;
+    let initialOrbitPitch = 0;
+    let initialOrbitDistance = 1.5;
+    let hasInitialOrbit = false;
+    const orbitKeyState = {
+      ArrowLeft: false,
+      ArrowRight: false,
+      ArrowUp: false,
+      ArrowDown: false,
+    };
+
+    function applyOrbit() {
+      const cosPitch = Math.cos(orbitPitch);
+      const sinPitch = Math.sin(orbitPitch);
+      const cosYaw = Math.cos(orbitYaw);
+      const sinYaw = Math.sin(orbitYaw);
+      const offset = new THREE.Vector3(
+        orbitDistance * sinYaw * cosPitch,
+        orbitDistance * sinPitch,
+        orbitDistance * cosYaw * cosPitch,
+      );
+      camera.position.copy(orbitTarget).add(offset);
+      camera.lookAt(orbitTarget);
+    }
+
+    function syncOrbitFromCamera() {
+      const offset = camera.position.clone().sub(orbitTarget);
+      orbitDistance = Math.max(0.1, offset.length());
+      if (orbitDistance <= 0) {
+        orbitYaw = 0;
+        orbitPitch = 0;
+        return;
+      }
+      orbitYaw = Math.atan2(offset.x, offset.z);
+      orbitPitch = Math.asin(THREE.MathUtils.clamp(offset.y / orbitDistance, -1, 1));
+    }
+
+    function setOrbitFromBounds(bounds) {
+      const size = new THREE.Vector3();
+      bounds.getSize(size);
+      bounds.getCenter(orbitTarget);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      orbitDistance = Math.max(0.1, maxDim * 1.8);
+      orbitYaw = 0;
+      orbitPitch = 0;
+      applyOrbit();
+      if (!hasInitialOrbit) {
+        initialOrbitTarget = orbitTarget.clone();
+        initialOrbitYaw = orbitYaw;
+        initialOrbitPitch = orbitPitch;
+        initialOrbitDistance = orbitDistance;
+        hasInitialOrbit = true;
+        lastCameraPos.copy(camera.position);
+      }
+    }
+
+    function resetView() {
+      if (!hasInitialOrbit) return;
+      orbitTarget.copy(initialOrbitTarget);
+      orbitYaw = initialOrbitYaw;
+      orbitPitch = initialOrbitPitch;
+      orbitDistance = initialOrbitDistance;
+      applyOrbit();
+      lastCameraPos.copy(camera.position);
+    }
+
+    function resetViewState() {
+      resetView();
+      updateFov(35);
+    }
+
+    window.addEventListener('keydown', (event) => {
+      if (event.code in orbitKeyState) {
+        orbitKeyState[event.code] = true;
+        event.preventDefault();
+      }
+    });
+
+    window.addEventListener('keyup', (event) => {
+      if (event.code in orbitKeyState) {
+        orbitKeyState[event.code] = false;
+        event.preventDefault();
+      }
+    });
+
+    function resize() {
+      const width = frameEl.clientWidth;
+      const height = frameEl.clientHeight;
+
+      const canvas = renderer.domElement;
+      const needResize = canvas.width !== width || canvas.height !== height;
+
+      if (needResize) {
+        renderer.setSize(width, height, false);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      }
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      setTimeout(function () { resize(); }, 50);
+    });
+    resizeObserver.observe(frameEl);
+
+    const SHORT_MAX_FRAMES = 16;
+    const MEDIUM_MAX_FRAMES = 32;
+    const FRAME_LIMIT_MODE_SHORT = 'short';
+    const FRAME_LIMIT_MODE_MEDIUM = 'medium';
+    const FRAME_LIMIT_MODE_LONG = 'long';
+    let maxFramesMode = FRAME_LIMIT_MODE_SHORT;
+    let maxFramesToLoad = SHORT_MAX_FRAMES;
+
+    function parseFrameLimitMode(value) {
+      const raw = String(value ?? '').trim().toLowerCase();
+      if (raw === FRAME_LIMIT_MODE_MEDIUM || raw === '32') {
+        return FRAME_LIMIT_MODE_MEDIUM;
+      }
+      if (raw === FRAME_LIMIT_MODE_LONG || raw === 'all' || raw === 'infinity') {
+        return FRAME_LIMIT_MODE_LONG;
+      }
+      const parsed = Number.parseInt(raw, 10);
+      if (Number.isFinite(parsed) && parsed > MEDIUM_MAX_FRAMES) {
+        return FRAME_LIMIT_MODE_LONG;
+      }
+      if (parsed === MEDIUM_MAX_FRAMES) {
+        return FRAME_LIMIT_MODE_MEDIUM;
+      }
+      return FRAME_LIMIT_MODE_SHORT;
+    }
+
+    function applyFrameLimitMode(mode) {
+      if (mode === FRAME_LIMIT_MODE_LONG) {
+        maxFramesMode = FRAME_LIMIT_MODE_LONG;
+        maxFramesToLoad = Number.POSITIVE_INFINITY;
+        return;
+      }
+      if (mode === FRAME_LIMIT_MODE_MEDIUM) {
+        maxFramesMode = FRAME_LIMIT_MODE_MEDIUM;
+        maxFramesToLoad = MEDIUM_MAX_FRAMES;
+        return;
+      }
+      maxFramesMode = FRAME_LIMIT_MODE_SHORT;
+      maxFramesToLoad = SHORT_MAX_FRAMES;
+    }
+
+    function limitFrames(list) {
+      return list.slice(0, maxFramesToLoad);
+    }
+
+    let params = new URLSearchParams(document.location.search);
+    const paramFrameLimit = params.get('n') ?? params.get('maxFrames');
+    if (paramFrameLimit != null) {
+      applyFrameLimitMode(parseFrameLimitMode(paramFrameLimit));
+    }
+
+    let frames = [];
+    let currentIndex = 0;
+    let isPlaying = false;
+    let fps = 30;
+    let speedMultiplier = 1;
+    let isLoadingFrame = false;
+    let playbackTimer = null;
+    let isCaching = false;
+    let cachingTaskId = 0;
+    let cachingProgress = 0;
+
+    const playBtn = document.querySelector('.play-button');
+    const playIcon = document.querySelector('.play-icon');
+    const cachingPercentEl = document.querySelector('.caching-percent');
+    const frameIndicatorEls = document.querySelectorAll('.frame-indicator');
+    const progressEl = document.querySelector('.progress');
+    const timeCurrentEl = document.querySelector('.time-current');
+    const timeTotalEl = document.querySelector('.time-total');
+    const speedSelect = document.querySelector('.speed-select');
+    const resetBtn = document.querySelector('.reset-button');
+    const importBtn = document.querySelector('.import-button');
+    const frameLimitSelectEl = document.querySelector('.frame-limit-select');
+    const fovSlider = document.querySelector('.fov-slider');
+    const fovValue = document.querySelector('.fov-value');
+    const controlsRightEl = document.querySelector('.controls-right');
+
+    if (frameLimitSelectEl) {
+      frameLimitSelectEl.value = maxFramesMode;
+      frameLimitSelectEl.addEventListener('change', () => {
+        applyFrameLimitMode(frameLimitSelectEl.value);
+        frameLimitSelectEl.value = maxFramesMode;
+      });
+    }
+
+    if (vrButton) {
+      vrButton.style.zIndex = '3';
+      vrButton.setAttribute('aria-label', 'Enter VR');
+      vrButton.setAttribute('title', 'Enter VR');
+      if (controlsRightEl) {
+        controlsRightEl.appendChild(vrButton);
+      } else {
+        document.body.appendChild(vrButton);
+      }
+    }
+
+    function updateFov(value) {
+      const nextFov = Math.min(90, Math.max(10, Number(value)));
+      camera.fov = nextFov;
+      camera.updateProjectionMatrix();
+      fovValue.textContent = `${Math.round(nextFov)}°`;
+      fovSlider.value = String(nextFov);
+    }
+
+    function formatTime(seconds) {
+      if (!Number.isFinite(seconds) || seconds < 0) return '00:00';
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function updateIndicator() {
+      const total = frames.length || 0;
+      const idx = total ? (currentIndex + 1) : 0;
+      for (const el of frameIndicatorEls) {
+        el.textContent = `${idx}/${total}`;
+      }
+    }
+
+    function updateProgress() {
+      const total = frames.length || 0;
+      progressEl.max = total > 0 ? String(total - 1) : '0';
+      progressEl.value = total > 0 ? String(currentIndex) : '0';
+      const totalSeconds = total > 0 ? total / fps : 0;
+      const currentSeconds = total > 0 ? currentIndex / fps : 0;
+      timeCurrentEl.textContent = formatTime(currentSeconds);
+      timeTotalEl.textContent = formatTime(totalSeconds);
+    }
+
+    function showViewerInterface() {
+      document.querySelector('.container').classList.add('hidden');
+      document.querySelector('.canvas-container').classList.remove('invisible');
+    }
+
+    function showImportInterface() {
+      setPlaying(false);
+      document.querySelector('.canvas-container').classList.add('invisible');
+      document.querySelector('.container').classList.remove('hidden');
+      setCacheButtonState({
+        label: cacheButtonIdleLabel,
+        progress: 0,
+        disabled: false,
+      });
+    }
+
+    async function showFrame(index) {
+      if (!frames.length || isLoadingFrame) return;
+      isLoadingFrame = true;
+      currentIndex = (index + frames.length) % frames.length;
+      const frame = frames[currentIndex];
+
+      try {
+        if (!frame) return;
+        const mesh = await ensureFrameMesh(currentIndex);
+        if (!mesh) return;
+
+        if (loadedSplat && loadedSplat !== mesh) {
+          loadedSplat.visible = false;
+        }
+        mesh.visible = true;
+        loadedSplat = mesh;
+
+        if (!hasInitialOrbit) {
+          syncOrbitFromCamera();
+          initialOrbitTarget = orbitTarget.clone();
+          initialOrbitYaw = orbitYaw;
+          initialOrbitPitch = orbitPitch;
+          initialOrbitDistance = orbitDistance;
+          hasInitialOrbit = true;
+          lastCameraPos.copy(camera.position);
+        }
+      } finally {
+        isLoadingFrame = false;
+      }
+
+      updateIndicator();
+      updateProgress();
+
+      if (renderer.xr.isPresenting && vrFrameInitialized) {
+        fitVrWindowToSplat();
+      }
+    }
+
+    function nextFrame() { showFrame(currentIndex + 1); }
+
+    function startPlayback() {
+      if (playbackTimer) return;
+      playbackTimer = setInterval(() => {
+        if (!isLoadingFrame) {
+          nextFrame();
+        }
+      }, 1000 / (fps * speedMultiplier));
+    }
+
+    function stopPlayback() {
+      if (playbackTimer) {
+        clearInterval(playbackTimer);
+        playbackTimer = null;
+      }
+    }
+
+    function setPlaying(val) {
+      isPlaying = val;
+      playIcon.textContent = isPlaying ? '❚❚' : '▶';
+      playBtn.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+      if (isPlaying) {
+        startPlayback();
+      } else {
+        stopPlayback();
+      }
+    }
+
+    function setCaching(val) {
+      isCaching = val;
+      playBtn.classList.toggle('is-loading', isCaching);
+      playBtn.disabled = isCaching;
+      if (!isCaching) {
+        cachingProgress = 0;
+      }
+      if (cachingPercentEl) {
+        cachingPercentEl.classList.toggle('is-visible', isCaching);
+        cachingPercentEl.textContent = `${Math.round(cachingProgress)}%`;
+      }
+      if (isCaching) {
+        setPlaying(false);
+      }
+    }
+
+    function setCachingProgress(value) {
+      cachingProgress = Math.max(0, Math.min(100, Number(value) || 0));
+      if (cachingPercentEl) {
+        cachingPercentEl.textContent = `${Math.round(cachingProgress)}%`;
+      }
+    }
+
+    playBtn.addEventListener('click', async () => {
+      if (isCaching) return;
+      if (isPlaying) {
+        setPlaying(false);
+        return;
+      }
+      if (!frames.length) return;
+      if (!loadedSplat || !loadedSplat.isInitialized) {
+        await showFrame(currentIndex);
+      }
+      setPlaying(true);
+    });
+    speedSelect.addEventListener('change', () => {
+      const v = Number(speedSelect.value);
+      if (!Number.isFinite(v) || v <= 0) return;
+      speedMultiplier = v;
+      if (isPlaying) {
+        stopPlayback();
+        startPlayback();
+      }
+    });
+
+    fovSlider.addEventListener('input', () => {
+      updateFov(fovSlider.value);
+    });
+
+    progressEl.addEventListener('input', () => {
+      if (!frames.length) return;
+      const index = Number(progressEl.value) || 0;
+      setPlaying(false);
+      showFrame(index);
+    });
+
+    resetBtn.addEventListener('click', () => {
+      resetViewState();
+    });
+
+    importBtn?.addEventListener('click', async () => {
+      if (renderer.xr.isPresenting) {
+        const xrSession = renderer.xr.getSession();
+        if (xrSession) {
+          await xrSession.end();
+        }
+      }
+      showImportInterface();
+    });
+
+    updateFov(camera.fov);
+
+    renderer.setAnimationLoop(function animate() {
+      const isInVR = renderer.xr.isPresenting;
+
+      if (!isInVR) {
+        if (shouldResetViewAfterVrExit) {
+          shouldResetViewAfterVrExit = false;
+          resetViewState();
+        }
+        resize();
+        controls.update(camera);
+
+        let isOrbiting = false;
+
+        if (
+          orbitKeyState.ArrowLeft ||
+          orbitKeyState.ArrowRight ||
+          orbitKeyState.ArrowUp ||
+          orbitKeyState.ArrowDown
+        ) {
+          isOrbiting = true;
+          syncOrbitFromCamera();
+          if (orbitKeyState.ArrowLeft) orbitYaw += orbitSpeed;
+          if (orbitKeyState.ArrowRight) orbitYaw -= orbitSpeed;
+          if (orbitKeyState.ArrowUp) {
+            orbitPitch = Math.min(Math.PI / 2 - 0.05, orbitPitch + orbitSpeed);
+          }
+          if (orbitKeyState.ArrowDown) {
+            orbitPitch = Math.max(-Math.PI / 2 + 0.05, orbitPitch - orbitSpeed);
+          }
+          applyOrbit();
+        }
+
+        const deltaPos = camera.position.clone().sub(lastCameraPos);
+        if (isOrbiting) {
+          lastCameraPos.copy(camera.position);
+        } else if (deltaPos.lengthSq() > 0) {
+          orbitTarget.add(deltaPos);
+          lastCameraPos.copy(camera.position);
+        }
+      } else {
+        // Keep both frame and 3DGS world-fixed in VR.
+        // Place window once when entering VR so the scene starts centered.
+        // Keep the window plane fixed at world (0, 0, z).
+        if (!vrFrameInitialized) {
+          vrFrameGroup.position.set(0, 0, 0);
+          vrFrameGroup.rotation.set(0, 0, 0);
+          fitVrWindowToSplat();
+          vrFrameInitialized = true;
+        }
+
+        if (ENABLE_VR_CONTROL_PANEL) {
+          // Redraw panel canvas each frame
+          drawVrPanel();
+
+          // Update pointer dot from controllers
+          pointerDot.visible = false;
+          for (const ctrl of [xrController0, xrController1]) {
+            const hit = hitTestPanel(ctrl);
+            if (hit) {
+              pointerDot.position.copy(hit.point);
+              pointerDot.visible = true;
+              break;
+            }
+          }
+        } else {
+          pointerDot.visible = false;
+        }
+      }
+
+      renderer.render(scene, camera);
+    });
+
+    const dropZoneEl = document.querySelector('.container');
+    const dropUIEl = document.querySelector('.drop-zone');
+    const onDragover = function (e) {
+      e.preventDefault();
+      dropUIEl.classList.add('dragover');
+    };
+    const onDragLeave = function () {
+      dropUIEl.classList.remove('dragover');
+    };
+    const onDrop = function (e) {
+      e.preventDefault();
+      dropUIEl.classList.remove('dragover');
+
+      const files = Array.from(e.dataTransfer.files || []);
+      if (files.length > 0) {
+        loadSplatFiles(files);
+      }
+    };
+
+    dropZoneEl.addEventListener('dragover', onDragover);
+    sparkCanvasEl.addEventListener('dragover', onDragover);
+
+    dropZoneEl.addEventListener('dragleave', onDragLeave);
+    sparkCanvasEl.addEventListener('dragleave', onDragLeave);
+
+    dropZoneEl.addEventListener('drop', onDrop);
+    sparkCanvasEl.addEventListener('drop', onDrop);
+
+    const fileInput = document.querySelector('#file-input');
+    fileInput.onchange = function(event) {
+      const files = Array.from(event.target.files || []);
+      if (files.length) { loadSplatFiles(files); }
+    };
+
+    dropUIEl.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    function sortFilesByName(files) {
+      return files.slice().sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    const sceneCache = new Map();
+
+    function getSceneCacheKey(dirUrl) {
+      const normalized = normalizeDirectoryUrl(dirUrl);
+      return `${normalized}::${maxFramesMode}`;
+    }
+
+    function createSceneFramesFromUrls(urls) {
+      return limitFrames(urls).map(u => ({
+        url: u,
+        name: u.split('/').pop().split('?')[0],
+        file: null,
+        bytes: null,
+        mesh: null,
+        meshPromise: null,
+        bytesPromise: null,
+      }));
+    }
+
+    async function loadSplatFiles(files) {
+      const ordered = sortFilesByName(files);
+      const loaded = ordered.map((f) => ({
+        name: f.name,
+        file: f,
+        bytes: null,
+        mesh: null,
+        meshPromise: null,
+        bytesPromise: null,
+      }));
+
+      frames = limitFrames(loaded);
+      currentIndex = 0;
+      setPlaying(false);
+
+      showViewerInterface();
+
+      if (frames.length > 0) {
+        await ensureFrameBytes(0, frames);
+        await showFrame(0);
+      }
+      preloadFrames(1, frames);
+    }
+
+    var loadedSplat;
+    async function setSplatFile(init, { updateOrbit } = { updateOrbit: true }) {
+      const nextSplat = new SplatMesh(init);
+      nextSplat.quaternion.set(1, 0, 0, 0);
+      nextSplat.scale.setScalar(3);
+      nextSplat.visible = false;
+      scene.add(nextSplat);
+      await nextSplat.initialized;
+      if (updateOrbit) {
+        const bounds = nextSplat.getBoundingBox(false);
+        setOrbitFromBounds(bounds);
+      }
+      nextSplat.visible = true;
+      return nextSplat;
+    }
+
+    async function ensureFrameBytes(index, frameList = frames) {
+      const frame = frameList[index];
+      if (!frame || frame.bytes) return frame?.bytes ?? null;
+      if (frame.bytesPromise) return frame.bytesPromise;
+      frame.bytesPromise = (async () => {
+        if (frame.file) {
+          frame.bytes = new Uint8Array(await frame.file.arrayBuffer());
+        } else if (frame.url && !frame.bytes) {
+          const resp = await fetch(frame.url);
+          frame.bytes = new Uint8Array(await resp.arrayBuffer());
+        }
+        return frame.bytes;
+      })();
+      return frame.bytesPromise;
+    }
+
+    async function ensureFrameMesh(index, frameList = frames) {
+      const frame = frameList[index];
+      if (!frame) return null;
+      if (frame.mesh) return frame.mesh;
+      if (frame.meshPromise) return frame.meshPromise;
+      frame.meshPromise = (async () => {
+        if (!frame.bytes && (frame.file || frame.url)) {
+          await ensureFrameBytes(index, frameList);
+        }
+        const mesh = await setSplatFile(
+          {
+          fileBytes: frame.bytes.slice(),
+          fileName: frame.name,
+          },
+          { updateOrbit: false },
+        );
+        mesh.visible = false;
+        frame.mesh = mesh;
+        return mesh;
+      })();
+      return frame.meshPromise;
+    }
+
+    function preloadFrames(startIndex = 0, frameList = frames) {
+      const pending = [];
+      for (let i = startIndex; i < frameList.length; i += 1) {
+        if (!frameList[i].mesh && !frameList[i].meshPromise) {
+          pending.push(ensureFrameMesh(i, frameList));
+        }
+      }
+      if (pending.length > 0) {
+        const taskId = ++cachingTaskId;
+        let done = 0;
+        setCaching(true);
+        setCachingProgress(0);
+        for (const p of pending) {
+          p.finally(() => {
+            if (taskId !== cachingTaskId) return;
+            done += 1;
+            setCachingProgress((done / pending.length) * 100);
+          });
+        }
+        Promise.allSettled(pending).finally(() => {
+          if (taskId !== cachingTaskId) return;
+          setCachingProgress(100);
+          setCaching(false);
+        });
+      }
+    }
+
+    let splatURL = params.get("url");
+
+    if (splatURL) { loadSplatURL(splatURL); }
+
+
+    async function loadSceneByDirectory(dirUrl) {
+      const normalized = normalizeDirectoryUrl(dirUrl);
+      const cacheKey = getSceneCacheKey(normalized);
+      let sceneEntry = sceneCache.get(cacheKey);
+      if (!sceneEntry) {
+        const urls = await discoverSplatFiles(normalized);
+        sceneEntry = {
+          dir: normalized,
+          frames: createSceneFramesFromUrls(urls),
+        };
+        sceneCache.set(cacheKey, sceneEntry);
+      }
+
+      frames = sceneEntry.frames;
+      currentIndex = 0;
+      setPlaying(false);
+      showViewerInterface();
+
+      if (frames.length > 0) {
+        await showFrame(0);
+      }
+      preloadFrames(1, frames);
+    }
+
+
+    async function loadSplatURL(splatURL) {
+      const fileName = splatURL.split("/").pop().split("?")[0];
+      frames = [{ url: splatURL, name: fileName }];
+      currentIndex = 0;
+      setPlaying(false);
+      showViewerInterface();
+      await showFrame(0);
+    }
+
+    async function loadSplatURLs(urls) {
+      frames = limitFrames(urls).map(u => ({
+        url: u,
+        name: u.split('/').pop().split('?')[0],
+        file: null, bytes: null, mesh: null, meshPromise: null, bytesPromise: null,
+      }));
+      currentIndex = 0;
+      setPlaying(false);
+      showViewerInterface();
+      if (frames.length > 0) {
+        await showFrame(0);
+      }
+      preloadFrames(1, frames);
+    }
+
+    // Expand a URL pattern with {start..end} into an array of URLs
+    // e.g. "/data/frame_{001..050}.spz" → ["/data/frame_001.spz", ..., "/data/frame_050.spz"]
+    function expandUrlPattern(input) {
+      const match = input.match(/^(.*)\{(\d+)\.\.(\d+)\}(.*)$/);
+      if (!match) return null;
+      const [, prefix, startStr, endStr, suffix] = match;
+      const start = parseInt(startStr, 10);
+      const end = parseInt(endStr, 10);
+      const padLen = startStr.length;
+      const urls = [];
+      for (let i = start; i <= end; i++) {
+        urls.push(prefix + String(i).padStart(padLen, '0') + suffix);
+      }
+      return urls;
+    }
+
+    const SPLAT_EXTS = ['.ply', '.spz', '.splat', '.ksplat'];
+    const SCENES_MANIFEST_URL = './scenes.json';
+    let sceneCatalogPromise = null;
+
+    function normalizeCatalogKey(input) {
+      return normalizeDirectoryUrl(input).replace(/^\/+|\/+$/g, '');
+    }
+
+    async function loadSceneCatalog() {
+      if (sceneCatalogPromise) return sceneCatalogPromise;
+      sceneCatalogPromise = (async () => {
+        try {
+          const resp = await fetch(SCENES_MANIFEST_URL, { cache: 'no-store' });
+          if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+          const payload = await resp.json();
+          return payload?.scenes && typeof payload.scenes === 'object' ? payload.scenes : {};
+        } catch (e) {
+          console.warn('Failed to load scenes manifest:', e);
+          return {};
+        }
+      })();
+      return sceneCatalogPromise;
+    }
+
+    function extractSceneUrls(sceneConfig) {
+      if (Array.isArray(sceneConfig)) return sceneConfig.slice();
+      if (!sceneConfig || typeof sceneConfig !== 'object') return [];
+
+      if (Array.isArray(sceneConfig.urls)) {
+        return sceneConfig.urls.slice();
+      }
+
+      if (typeof sceneConfig.pattern === 'string') {
+        return expandUrlPattern(sceneConfig.pattern) || [];
+      }
+
+      if (typeof sceneConfig.baseUrl === 'string' && Array.isArray(sceneConfig.files)) {
+        const baseUrl = sceneConfig.baseUrl.endsWith('/') ? sceneConfig.baseUrl : `${sceneConfig.baseUrl}/`;
+        return sceneConfig.files.map(name => `${baseUrl}${name}`);
+      }
+
+      return [];
+    }
+
+    async function discoverSplatFiles(dirUrl) {
+      const key = normalizeCatalogKey(dirUrl);
+      const catalog = await loadSceneCatalog();
+      const sceneConfig = catalog[key];
+      if (!sceneConfig) return [];
+      const urls = extractSceneUrls(sceneConfig).filter(url => {
+        if (typeof url !== 'string') return false;
+        const lower = url.toLowerCase();
+        return SPLAT_EXTS.some(ext => lower.endsWith(ext));
+      });
+      return limitFrames(urls);
+    }
+
+    const urlFormEl = document.querySelector('.url-form');
+    const urlDirSelectEl = document.querySelector('.url-dir-select');
+    const cacheAllBtnEl = document.querySelector('.cache-all-button');
+    const cacheAllProgressEl = document.querySelector('.cache-all-progress');
+    const cacheAllLabelEl = document.querySelector('.cache-all-label');
+    let currentDirectory = '/';
+    let cacheButtonIdleLabel = 'Cache';
+    let cacheLabelAnimTimer = null;
+    let cacheLabelAnimFrame = 0;
+    let cacheAllLabelTextEl = null;
+    let cacheAllLabelDotsEl = null;
+
+    function ensureCacheLabelParts() {
+      if (!cacheAllLabelEl) return;
+      if (cacheAllLabelTextEl && cacheAllLabelDotsEl) return;
+      cacheAllLabelEl.innerHTML = '';
+      cacheAllLabelTextEl = document.createElement('span');
+      cacheAllLabelTextEl.className = 'cache-all-label-text';
+      cacheAllLabelDotsEl = document.createElement('span');
+      cacheAllLabelDotsEl.className = 'cache-all-label-dots';
+      cacheAllLabelDotsEl.textContent = '';
+      cacheAllLabelEl.appendChild(cacheAllLabelTextEl);
+      cacheAllLabelEl.appendChild(cacheAllLabelDotsEl);
+    }
+
+    function setCacheLabel(baseLabel, dots = '') {
+      ensureCacheLabelParts();
+      if (!cacheAllLabelTextEl || !cacheAllLabelDotsEl) return;
+      cacheAllLabelTextEl.textContent = baseLabel;
+      cacheAllLabelDotsEl.textContent = dots;
+    }
+
+    function stopCacheLabelAnimation() {
+      if (cacheLabelAnimTimer) {
+        clearInterval(cacheLabelAnimTimer);
+        cacheLabelAnimTimer = null;
+      }
+    }
+
+    function startCacheLabelAnimation(baseLabel) {
+      stopCacheLabelAnimation();
+      ensureCacheLabelParts();
+      cacheLabelAnimFrame = 0;
+      const dotFrames = ['', '.', '..', '...'];
+      setCacheLabel(baseLabel, dotFrames[1]);
+      cacheLabelAnimTimer = setInterval(() => {
+        cacheLabelAnimFrame = (cacheLabelAnimFrame + 1) % 4;
+        setCacheLabel(baseLabel, dotFrames[cacheLabelAnimFrame]);
+      }, 350);
+    }
+
+    function setCacheButtonState({
+      label = 'Cache',
+      progress = 0,
+      disabled = false,
+      isCaching = false,
+    } = {}) {
+      if (isCaching) {
+        startCacheLabelAnimation(label);
+      } else {
+        stopCacheLabelAnimation();
+        setCacheLabel(label, '');
+      }
+      if (cacheAllProgressEl) {
+        let pct = Math.max(0, Math.min(100, progress));
+        if (isCaching && pct < 10) {
+          pct = 10;
+        }
+        cacheAllProgressEl.style.width = `${pct}%`;
+      }
+      if (cacheAllBtnEl) {
+        cacheAllBtnEl.disabled = disabled;
+        cacheAllBtnEl.classList.toggle('is-caching', isCaching);
+      }
+    }
+
+    function normalizeDirectoryUrl(input) {
+      let dir = (input || '').trim();
+      if (!dir) return '/';
+      if (!dir.startsWith('/')) dir = '/' + dir;
+      if (!dir.endsWith('/')) dir += '/';
+      return dir;
+    }
+
+    async function discoverSubdirectories(dirUrl) {
+      const normalized = normalizeDirectoryUrl(dirUrl);
+      if (normalized !== '/') return [];
+      const catalog = await loadSceneCatalog();
+      return Object.keys(catalog).sort();
+    }
+
+    function setDirectoryOptions(baseDir, directories) {
+      if (!urlDirSelectEl) return;
+      const normalizedBase = normalizeDirectoryUrl(baseDir);
+      urlDirSelectEl.innerHTML = '';
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Select folder...';
+      urlDirSelectEl.appendChild(placeholder);
+
+      if (directories.length === 0) {
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = 'No folders';
+        empty.disabled = true;
+        urlDirSelectEl.appendChild(empty);
+      } else {
+        for (const name of directories) {
+          const fullDir = `${normalizedBase}${name}/`;
+          const option = document.createElement('option');
+          option.value = fullDir;
+          option.textContent = name;
+          option.title = fullDir;
+          urlDirSelectEl.appendChild(option);
+        }
+      }
+
+      urlDirSelectEl.value = '';
+    }
+
+    async function refreshDirectoryDropdown(baseDir = currentDirectory) {
+      if (!urlDirSelectEl) return;
+      currentDirectory = normalizeDirectoryUrl(baseDir);
+      try {
+        urlDirSelectEl.disabled = true;
+        urlDirSelectEl.innerHTML = '<option value="">Loading folders...</option>';
+        const dirs = await discoverSubdirectories(currentDirectory);
+        setDirectoryOptions(currentDirectory, dirs);
+      } catch (e) {
+        console.error('Directory discovery failed:', e);
+        urlDirSelectEl.innerHTML = '<option value="">Folder list unavailable</option>';
+      } finally {
+        urlDirSelectEl.disabled = false;
+      }
+    }
+
+    async function loadFromUrlText(raw) {
+      if (!raw) return;
+
+      // 1) Try pattern expansion: /data/f_{001..050}.spz
+      const patternUrls = expandUrlPattern(raw);
+      if (patternUrls) {
+        await loadSplatURLs(patternUrls);
+        return true;
+      }
+
+      // 2) If URL has no file extension, treat as directory → discover splat files
+      const lastSegment = raw.split('/').pop().split('?')[0];
+      const hasExt = lastSegment.includes('.') && SPLAT_EXTS.some(ext => lastSegment.toLowerCase().endsWith(ext));
+      if (!hasExt) {
+        try {
+          const normalized = normalizeDirectoryUrl(raw);
+          const cacheKey = getSceneCacheKey(normalized);
+          // Use in-memory cache first so returning to import is instant.
+          if (!sceneCache.has(cacheKey)) {
+            const urls = await discoverSplatFiles(normalized);
+            if (urls.length === 0) {
+              alert('No .ply / .spz / .splat / .ksplat files found at that URL');
+              return false;
+            }
+            sceneCache.set(cacheKey, {
+              dir: normalized,
+              frames: createSceneFramesFromUrls(urls),
+            });
+          }
+          await loadSceneByDirectory(normalized);
+        } catch (e) {
+          console.error('Directory discovery failed:', e);
+          alert('Failed to list directory: ' + e.message);
+          return false;
+        }
+        return true;
+      }
+
+      // 3) Single file URL
+      const url = new URL(window.location);
+      await loadSplatURL(raw);
+      url.searchParams.set('url', raw);
+      history.pushState(null, '', url);
+      return true;
+    }
+
+    async function cacheDirectoryScene(dirUrl) {
+      const normalized = normalizeDirectoryUrl(dirUrl);
+      const cacheKey = getSceneCacheKey(normalized);
+      let sceneEntry = sceneCache.get(cacheKey);
+      if (!sceneEntry) {
+        const urls = await discoverSplatFiles(normalized);
+        if (urls.length === 0) return false;
+        sceneEntry = {
+          dir: normalized,
+          frames: createSceneFramesFromUrls(urls),
+        };
+        sceneCache.set(cacheKey, sceneEntry);
+      }
+
+      for (let i = 0; i < sceneEntry.frames.length; i += 1) {
+        await ensureFrameMesh(i, sceneEntry.frames);
+      }
+      return true;
+    }
+
+    async function cacheAllScenesFromCurrentDirectory() {
+      const dirs = await discoverSubdirectories(currentDirectory);
+      const targets = dirs.map(name => `${normalizeDirectoryUrl(currentDirectory)}${name}/`);
+      if (targets.length === 0) {
+        cacheButtonIdleLabel = 'Cache';
+        setCacheButtonState({
+          label: 'Cache all scenes (no scenes)',
+          progress: 0,
+          disabled: false,
+          isCaching: false,
+        });
+        return;
+      }
+
+      setCacheButtonState({
+        label: `Caching 0/${targets.length}`,
+        progress: 0,
+        disabled: true,
+        isCaching: true,
+      });
+      let done = 0;
+
+      for (const dir of targets) {
+        try {
+          await cacheDirectoryScene(dir);
+        } catch (e) {
+          console.warn('Cache scene failed:', dir, e);
+        }
+        done += 1;
+        setCacheButtonState({
+          label: `Caching ${done}/${targets.length}`,
+          progress: (done / targets.length) * 100,
+          disabled: true,
+          isCaching: true,
+        });
+      }
+
+      cacheButtonIdleLabel = `Cached ${done}/${targets.length}`;
+      setCacheButtonState({
+        label: cacheButtonIdleLabel,
+        progress: 100,
+        disabled: false,
+        isCaching: false,
+      });
+    }
+
+    urlFormEl.addEventListener('submit', async function handleEnterKey(event) {
+      event.preventDefault();
+    });
+
+    urlDirSelectEl?.addEventListener('change', async () => {
+      const selected = urlDirSelectEl.value;
+      if (!selected) return;
+      await loadFromUrlText(selected);
+      await refreshDirectoryDropdown(currentDirectory);
+    });
+
+    cacheAllBtnEl?.addEventListener('click', async () => {
+      await cacheAllScenesFromCurrentDirectory();
+    });
+
+    refreshDirectoryDropdown('/');
+    setCacheButtonState({
+      label: cacheButtonIdleLabel,
+      progress: 0,
+      disabled: false,
+    });
+
+    
+  </script>
+  <div class="canvas-container invisible">
+    <div class="viewer-window">
+      <div class="viewer-stack">
+        <div class="window-frame">
+          <div class="logo">
+            <a href="./"><img src="./pico-logo.png" alt="Spark Logo" /></a>
+          </div>
+          <canvas class="spark-canvas"></canvas>
+        </div>
+        <div class="controls">
+          <div class="controls-left">
+            <button class="play-button play-toggle" aria-label="Play">
+              <span class="play-icon" aria-hidden="true">▶</span>
+              <span class="loading-spinner" aria-hidden="true"></span>
+            </button>
+            <span class="caching-percent" aria-live="polite">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <span class="time time-current">00:00</span>
+            <input class="progress" type="range" min="0" max="0" step="1" value="0" />
+            <span class="time time-total">00:00</span>
+            <span class="frame-indicator frame-indicator-progress">0/0</span>
+          </div>
+          <div class="controls-right">
+            <span class="frame-indicator frame-indicator-actions">0/0</span>
+            <select class="speed-select">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2x</option>
+              <option value="3">3x</option>
+            </select>
+            <div class="fov-wrap">
+              <span class="fov-label">FOV</span>
+              <input class="fov-slider" type="range" min="10" max="90" step="1" value="35" />
+              <span class="fov-value">35°</span>
+            </div>
+            <button class="import-button">Import</button>
+            <button class="reset-button">Reset</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <div class="drop-container">
+      <h1 class="hero-title">Pico 6DoF Video Player</h1>
+      <div class="hero-logo">
+        <a href="./"><img src="./pico-viewer.png" alt="Pico Viewer Logo" /></a>
+      </div>
+      <div class="drop-zone">Drag and drop splat files here</div>
+      <input id="file-input" class="hidden" accept=".ply,.spz,.splat,.ksplat" type="file" multiple />
+      <form class="url-form">
+        <div class="url-row">
+          <select class="url-select url-dir-select" aria-label="Folder list">
+            <option value="">Select folder...</option>
+          </select>
+          <div class="frame-limit-wrap" title="Frame range">
+            <select class="frame-limit-select" aria-label="Frame range">
+              <option value="short" selected>Short (16 Frames)</option>
+              <option value="medium">Medium (32 Frames)</option>
+              <option value="long">Long (All Frames)</option>
+            </select>
+          </div>
+        </div>
+        <button type="button" class="cache-all-button">
+          <span class="cache-all-progress" aria-hidden="true"></span>
+          <span class="cache-all-label">Cache all scenes</span>
+        </button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

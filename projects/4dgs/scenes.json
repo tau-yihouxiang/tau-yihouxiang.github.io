@@ -1,0 +1,13 @@
+{
+  "scenes": {
+    "bear": {
+      "pattern": "./public/bear/{0000..0081}.spz"
+    },
+    "blackswan": {
+      "pattern": "./public/blackswan/{0000..0049}.spz"
+    },
+    "dance": {
+      "pattern": "./public/dance/{0000..0070}.spz"
+    }
+  }
+}
