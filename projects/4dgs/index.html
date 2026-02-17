@@ -13,6 +13,7 @@
       margin: 0;
       font-family: system-ui, sans-serif;
       color: #fff;
+      background: rgb(56, 56, 62);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -51,6 +52,13 @@
 
     .invisible {
       display: none;
+    }
+
+    .canvas-container {
+      position: fixed;
+      inset: 0;
+      background: rgb(56, 56, 62);
+      z-index: 2;
     }
 
     .logo {
@@ -488,6 +496,7 @@
       aspect-ratio: 16 / 9;
       height: auto;
       background: #111;
+      border: 3px solid rgba(180, 180, 180, 0.75);
       border-radius: clamp(16px, 2.2vw, 28px);
       overflow: hidden;
       box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
@@ -778,7 +787,7 @@
     // ── VR 3D Control Panel ──
     // Canvas-textured plane rendered inside the VR scene
     const ENABLE_VR_CONTROL_PANEL = false;
-    const DEFAULT_WIN_W = 1.92, DEFAULT_WIN_H = 1.080;   // window opening in world meters
+    const DEFAULT_WIN_W = 2.112, DEFAULT_WIN_H = 1.188;   // window opening in world meters (+10%)
     let winW = DEFAULT_WIN_W;
     let winH = DEFAULT_WIN_H;
     const VR_TARGET_VISIBLE_AREA = 0.8;
@@ -809,8 +818,8 @@
     scene.add(vrPanelMesh);
 
     // ── VR Window Frame (mask) ──
-    // A large white plane with a transparent rounded-rect hole in the center.
-    // Outside the hole = opaque white (blocks 3DGS), inside the hole = transparent (shows 3DGS).
+    // A large dark-gray plane with a transparent rounded-rect hole in the center.
+    // Outside the hole = opaque dark matte (blocks rear texture), inside the hole = transparent (shows 3DGS).
     const MASK_CANVAS_W = 3200, MASK_CANVAS_H = 2000;
     const MASK_PLANE_W = 10.0, MASK_PLANE_H = 6.25;  // plane world size (matches canvas aspect 1600:1000)
 
@@ -892,9 +901,9 @@
       const holeY = (MASK_CANVAS_H - holePixH) / 2;
       const holeRad = Math.max(20, Math.min(120, Math.min(holePixW, holePixH) * 0.12));
 
-      // 1) Fill entire canvas white (opaque)
+      // 1) Fill canvas with opaque dark matte to fully block rear texture bleed in VR
       maskCtx.clearRect(0, 0, MASK_CANVAS_W, MASK_CANVAS_H);
-      maskCtx.fillStyle = '#ffffff';
+      maskCtx.fillStyle = 'rgba(16, 16, 18, 1)';
       maskCtx.fillRect(0, 0, MASK_CANVAS_W, MASK_CANVAS_H);
 
       // 2) Cut out a transparent rounded-rect hole in the center
