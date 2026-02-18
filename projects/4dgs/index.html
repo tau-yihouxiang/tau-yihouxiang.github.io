@@ -1397,7 +1397,10 @@
       }
       return {
         preloadAheadFrames: DESKTOP_PRELOAD_AHEAD_FRAMES,
-        maxResidentMeshes: maxFramesMode === FRAME_LIMIT_MODE_LONG
+        maxResidentMeshes: (
+          maxFramesMode === FRAME_LIMIT_MODE_LONG
+          || maxFramesMode === FRAME_LIMIT_MODE_MEDIUM
+        )
           ? Number.POSITIVE_INFINITY
           : DESKTOP_MAX_RESIDENT_MESHES,
         releaseBytesAfterMesh: false,
@@ -1684,6 +1687,18 @@
       }
     }
 
+    async function startPlaybackAfterWarmup(frameList = frames) {
+      if (isCaching) return false;
+      if (!Array.isArray(frameList) || frameList.length === 0) return false;
+      if (!loadedSplat || !loadedSplat.isInitialized) {
+        await showFrame(currentIndex);
+      }
+      const warmupDone = await warmupPlaybackAssets(frameList);
+      if (!warmupDone) return false;
+      setPlaying(true);
+      return true;
+    }
+
     playBtn.addEventListener('click', async () => {
       if (isCaching) return;
       if (isPlaying) {
@@ -1691,12 +1706,7 @@
         return;
       }
       if (!frames.length) return;
-      if (!loadedSplat || !loadedSplat.isInitialized) {
-        await showFrame(currentIndex);
-      }
-      const warmupDone = await warmupPlaybackAssets(frames);
-      if (!warmupDone) return;
-      setPlaying(true);
+      await startPlaybackAfterWarmup(frames);
     });
     speedSelect.addEventListener('change', () => {
       const v = Number(speedSelect.value);
@@ -1891,6 +1901,7 @@
       if (frames.length > 0) {
         await ensureFrameBytes(0, frames);
         await showFrame(0);
+        await startPlaybackAfterWarmup(frames);
       }
     }
 
@@ -2058,7 +2069,9 @@
       showViewerInterface();
 
       if (frames.length > 0) {
+        await ensureFrameBytes(0, frames);
         await showFrame(0);
+        await startPlaybackAfterWarmup(frames);
       }
     }
 
