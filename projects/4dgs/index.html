@@ -1015,7 +1015,7 @@
 
     const controls = new SparkControls({ canvas: sparkCanvasEl });
     controls.fpsMovement.rotateSpeed = 0.6;
-    controls.fpsMovement.moveSpeed = 8.0;
+    controls.fpsMovement.moveSpeed = 0.8;
     controls.fpsMovement.keycodeMoveMapping = {
       KeyW: new THREE.Vector3(0, 0, -1),
       KeyS: new THREE.Vector3(0, 0, 1),
@@ -1822,6 +1822,7 @@
         pendingVrRefit = true;
       }
       await showFrame(0);
+      resetViewState();
       showViewerInterface();
       if (warmup) {
         await startPlaybackAfterWarmup(frames);
