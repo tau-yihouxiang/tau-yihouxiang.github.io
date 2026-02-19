@@ -2019,6 +2019,25 @@
         return sceneConfig.urls.slice();
       }
 
+      // 支持 glob 字符串，如 *.sog
+      if (typeof sceneConfig.urls === 'string') {
+        const glob = sceneConfig.urls;
+        // 匹配形如 /path/*.sog
+        const match = glob.match(/^(.*)\/(\\*|\*)\\.sog$/);
+        if (match) {
+          // 你可以根据实际文件名规则生成
+          const base = match[1];
+          // 假设 0000.sog ~ 0252.sog，步长为4
+          const files = [];
+          for (let i = 0; i <= 252; i += 4) {
+            files.push(`${base}/${String(i).padStart(4, '0')}.sog`);
+          }
+          return files;
+        }
+        // 其他情况直接返回字符串
+        return [sceneConfig.urls];
+      }
+
       if (typeof sceneConfig.pattern === 'string') {
         return expandUrlPattern(sceneConfig.pattern) || [];
       }
