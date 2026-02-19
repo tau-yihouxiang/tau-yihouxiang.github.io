@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const projectRoot = path.resolve(process.cwd(), 'projects/4dgs');
 const publicRoot = path.join(projectRoot, 'public');
-const outputPath = path.join(projectRoot, 'api', 'scenes');
+const outputPath = path.join(projectRoot, 'api', 'scenes.json');
 
 function sortByNumericName(a, b) {
   const nameA = a.name || '';
@@ -30,7 +30,7 @@ async function main() {
     const sogFiles = files
       .filter(file => file.isFile() && file.name.toLowerCase().endsWith('.sog'))
       .sort(sortByNumericName)
-      .map(file => `projects/4dgs/public/${sceneName}/${file.name}`);
+      .map(file => `public/${sceneName}/${file.name}`);
 
     scenes[sceneName] = sogFiles;
   }
