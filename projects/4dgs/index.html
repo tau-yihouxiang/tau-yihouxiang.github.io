@@ -964,6 +964,17 @@
 
     let shouldResetViewAfterVrExit = false;
     let vrFrameInitialized = false;
+    let pendingVrRefit = false;
+    let xrPlaybackClockInitialized = false;
+    let xrPlaybackLastTimestamp = 0;
+    let xrPlaybackElapsedMs = 0;
+
+    function resetXrPlaybackClock() {
+      xrPlaybackClockInitialized = false;
+      xrPlaybackLastTimestamp = 0;
+      xrPlaybackElapsedMs = 0;
+    }
+
     renderer.xr.addEventListener('sessionstart', () => {
       if (vrButton) {
         vrButton.setAttribute('aria-label', 'Exit VR');
@@ -978,6 +989,9 @@
       localFrame.rotation.set(0, 0, 0);
       localFrame.scale.set(1, 1, 1);
       drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
+      pendingVrRefit = true;
+      stopPlayback();
+      resetXrPlaybackClock();
     });
     renderer.xr.addEventListener('sessionend', () => {
       if (vrButton) {
@@ -990,6 +1004,11 @@
       localFrame.rotation.set(0, 0, 0);
       localFrame.scale.set(1, 1, 1);
       vrFrameInitialized = false;
+      pendingVrRefit = false;
+      resetXrPlaybackClock();
+      if (isPlaying) {
+        scheduleNextPlaybackTick();
+      }
       resetViewState();
       shouldResetViewAfterVrExit = true;
     });
@@ -1106,24 +1125,23 @@
     const FRAME_LIMIT_MODE_LONG = 'long';
     const IS_IOS_DEVICE = /iPad|iPhone|iPod/.test(navigator.userAgent)
       || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const XR_PRELOAD_AHEAD_FRAMES = 2;
-    const XR_MAX_RESIDENT_MESHES = 8;
+    const XR_PRELOAD_AHEAD_FRAMES = 0;
+    const XR_MAX_RESIDENT_MESHES = Number.POSITIVE_INFINITY;
+    const XR_WARMUP_FRAMES = Number.POSITIVE_INFINITY;
     const IOS_PRELOAD_AHEAD_FRAMES = 2;
     const IOS_MAX_RESIDENT_MESHES = 6;
     const DESKTOP_PRELOAD_AHEAD_FRAMES = 6;
     const DESKTOP_MAX_RESIDENT_MESHES = 18;
     let maxFramesMode = FRAME_LIMIT_MODE_SHORT;
     let maxFramesToLoad = SHORT_MAX_FRAMES;
-    let playbackWarmupComplete = false;
 
     function getRuntimeMemoryPolicy() {
       if (renderer.xr.isPresenting) {
         return {
           preloadAheadFrames: XR_PRELOAD_AHEAD_FRAMES,
-          maxResidentMeshes: playbackWarmupComplete
-            ? Number.POSITIVE_INFINITY
-            : XR_MAX_RESIDENT_MESHES,
+          maxResidentMeshes: XR_MAX_RESIDENT_MESHES,
           releaseBytesAfterMesh: true,
+          warmupFrameCount: XR_WARMUP_FRAMES,
         };
       }
       if (IS_IOS_DEVICE) {
@@ -1131,6 +1149,7 @@
           preloadAheadFrames: IOS_PRELOAD_AHEAD_FRAMES,
           maxResidentMeshes: IOS_MAX_RESIDENT_MESHES,
           releaseBytesAfterMesh: true,
+          warmupFrameCount: IOS_PRELOAD_AHEAD_FRAMES + 1,
         };
       }
       return {
@@ -1142,6 +1161,7 @@
           ? Number.POSITIVE_INFINITY
           : DESKTOP_MAX_RESIDENT_MESHES,
         releaseBytesAfterMesh: false,
+        warmupFrameCount: Number.POSITIVE_INFINITY,
       };
     }
 
@@ -1164,7 +1184,6 @@
     }
 
     function applyFrameLimitMode(mode) {
-      playbackWarmupComplete = false;
       if (mode === FRAME_LIMIT_MODE_LONG) {
         maxFramesMode = FRAME_LIMIT_MODE_LONG;
         maxFramesToLoad = Number.POSITIVE_INFINITY;
@@ -1374,6 +1393,11 @@
           hasInitialOrbit = true;
           lastCameraPos.copy(camera.position);
         }
+      } catch (error) {
+        if (frame) {
+          frame.meshPromise = null;
+        }
+        throw error;
       } finally {
         isLoadingFrame = false;
       }
@@ -1383,21 +1407,27 @@
       trimFrameMeshes(currentIndex, frames);
       preloadFrames(currentIndex, frames);
 
-      if (renderer.xr.isPresenting && vrFrameInitialized) {
+      if (renderer.xr.isPresenting && vrFrameInitialized && pendingVrRefit) {
         fitVrWindowToSplat();
+        pendingVrRefit = false;
       }
     }
 
     async function nextFrame() { await showFrame(currentIndex + 1); }
 
     function scheduleNextPlaybackTick() {
+      if (renderer.xr.isPresenting) return;
       if (!isPlaying || playbackTimer || !frames.length) return;
       const delayMs = getNextFrameDelayMs(currentIndex, frames);
       playbackTimer = setTimeout(async () => {
         playbackTimer = null;
         if (!isPlaying || !frames.length) return;
-        if (!isLoadingFrame) {
-          await nextFrame();
+        try {
+          if (!isLoadingFrame) {
+            await nextFrame();
+          }
+        } catch (error) {
+          console.warn('Frame playback failed, will retry on next tick:', error);
         }
         scheduleNextPlaybackTick();
       }, delayMs);
@@ -1419,9 +1449,15 @@
       playIcon.textContent = isPlaying ? '❚❚' : '▶';
       playBtn.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
       if (isPlaying) {
+        if (renderer.xr.isPresenting) {
+          resetXrPlaybackClock();
+          stopPlayback();
+          return;
+        }
         startPlayback();
       } else {
         stopPlayback();
+        resetXrPlaybackClock();
       }
     }
 
@@ -1455,20 +1491,19 @@
 
     function cancelCachingTask() {
       cachingTaskId += 1;
-      playbackWarmupComplete = false;
       setCaching(false);
     }
 
     async function warmupPlaybackAssets(frameList = frames) {
       if (!Array.isArray(frameList) || frameList.length === 0) return true;
 
-      const { maxResidentMeshes } = getRuntimeMemoryPolicy();
+      const { maxResidentMeshes, warmupFrameCount } = getRuntimeMemoryPolicy();
       const shouldWarmupMeshes = renderer.xr.isPresenting || !Number.isFinite(maxResidentMeshes);
+      const targetWarmupCount = Number.isFinite(warmupFrameCount)
+        ? Math.max(1, Math.min(frameList.length, warmupFrameCount))
+        : frameList.length;
 
       if (shouldWarmupMeshes && !hasMissingFrameMeshes(frameList)) {
-        if (frameList === frames) {
-          playbackWarmupComplete = true;
-        }
         return true;
       }
 
@@ -1477,7 +1512,7 @@
       setCachingProgress(0);
 
       try {
-        for (let i = 0; i < frameList.length; i += 1) {
+        for (let i = 0; i < targetWarmupCount; i += 1) {
           if (taskId !== cachingTaskId) return false;
           if (shouldWarmupMeshes) {
             await ensureFrameMesh(i, frameList);
@@ -1485,10 +1520,7 @@
             await ensureFrameBytes(i, frameList);
           }
           if (taskId !== cachingTaskId) return false;
-          setCachingProgress(((i + 1) / frameList.length) * 100);
-        }
-        if (taskId === cachingTaskId && shouldWarmupMeshes && frameList === frames) {
-          playbackWarmupComplete = true;
+          setCachingProgress(((i + 1) / targetWarmupCount) * 100);
         }
         return taskId === cachingTaskId;
       } finally {
@@ -1556,7 +1588,7 @@
 
     updateFov(camera.fov);
 
-    renderer.setAnimationLoop(function animate() {
+    renderer.setAnimationLoop(function animate(timeMs) {
       const isInVR = renderer.xr.isPresenting;
 
       if (!isInVR) {
@@ -1604,6 +1636,30 @@
           vrFrameGroup.rotation.set(0, 0, 0);
           fitVrWindowToSplat();
           vrFrameInitialized = true;
+          pendingVrRefit = false;
+        }
+
+        if (isPlaying && frames.length > 0 && !isCaching) {
+          const nowMs = Number.isFinite(timeMs) ? timeMs : performance.now();
+          if (!xrPlaybackClockInitialized) {
+            xrPlaybackClockInitialized = true;
+            xrPlaybackLastTimestamp = nowMs;
+            xrPlaybackElapsedMs = 0;
+          } else {
+            const deltaMs = Math.max(0, Math.min(250, nowMs - xrPlaybackLastTimestamp));
+            xrPlaybackLastTimestamp = nowMs;
+            xrPlaybackElapsedMs += deltaMs;
+          }
+
+          const frameDelayMs = getNextFrameDelayMs(currentIndex, frames);
+          if (!isLoadingFrame && xrPlaybackElapsedMs >= frameDelayMs) {
+            xrPlaybackElapsedMs -= frameDelayMs;
+            nextFrame().catch((error) => {
+              console.warn('VR frame playback failed, will retry on next XR tick:', error);
+            });
+          }
+        } else {
+          resetXrPlaybackClock();
         }
 
       }
@@ -1705,6 +1761,9 @@
       if (ensureFirstBytes) {
         await ensureFrameBytes(0, frames);
       }
+      if (renderer.xr.isPresenting) {
+        pendingVrRefit = true;
+      }
       await showFrame(0);
       if (warmup) {
         await startPlaybackAfterWarmup(frames);
@@ -1790,6 +1849,7 @@
           throw e;
         }
       })();
+
       return frame.meshPromise;
     }
 
@@ -1848,6 +1908,7 @@
       const total = frameList.length;
       const { preloadAheadFrames } = getRuntimeMemoryPolicy();
       const preloadCount = Math.min(preloadAheadFrames, Math.max(0, total - 1));
+
       for (let step = 1; step <= preloadCount; step += 1) {
         const i = (activeIndex + step) % total;
         if (!frameList[i]?.mesh && !frameList[i]?.meshPromise) {
