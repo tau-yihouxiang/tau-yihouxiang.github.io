@@ -1360,6 +1360,10 @@
       setPlaying(false);
       document.querySelector('.canvas-container').classList.add('invisible');
       document.querySelector('.container').classList.remove('hidden');
+      if (urlDirSelectEl) {
+        urlDirSelectEl.value = '';
+      }
+      selectedSceneDirectory = '';
       setCacheButtonState({
         label: cacheButtonIdleLabel,
         progress: 0,
@@ -1699,9 +1703,11 @@
     fileInput.onchange = function(event) {
       const files = Array.from(event.target.files || []);
       if (files.length) { loadSplatFiles(files); }
+      event.target.value = '';
     };
 
     dropUIEl.addEventListener('click', () => {
+      fileInput.value = '';
       fileInput.click();
     });
 
@@ -1754,9 +1760,6 @@
       if (!releaseOnlyIfChanged || previousFrames !== frames) {
         releaseFrameListResources(previousFrames);
       }
-
-      showViewerInterface();
-
       if (frames.length === 0) return;
       if (ensureFirstBytes) {
         await ensureFrameBytes(0, frames);
@@ -1765,6 +1768,7 @@
         pendingVrRefit = true;
       }
       await showFrame(0);
+      showViewerInterface();
       if (warmup) {
         await startPlaybackAfterWarmup(frames);
       }
@@ -1800,9 +1804,30 @@
       return nextSplat;
     }
 
+    function isDetachedArrayBuffer(buffer) {
+      if (!(buffer instanceof ArrayBuffer)) return true;
+      try {
+        new DataView(buffer);
+        return false;
+      } catch {
+        return true;
+      }
+    }
+
+    function hasUsableFrameBytes(frame) {
+      if (!frame || !(frame.bytes instanceof Uint8Array)) return false;
+      if (frame.bytes.byteLength <= 0) return false;
+      return !isDetachedArrayBuffer(frame.bytes.buffer);
+    }
+
     async function ensureFrameBytes(index, frameList = frames) {
       const frame = frameList[index];
-      if (!frame || frame.bytes) return frame?.bytes ?? null;
+      if (!frame) return null;
+      if (hasUsableFrameBytes(frame)) return frame.bytes;
+      if (frame.bytes && !hasUsableFrameBytes(frame)) {
+        frame.bytes = null;
+        frame.bytesPromise = null;
+      }
       if (frame.bytesPromise) return frame.bytesPromise;
       frame.bytesPromise = (async () => {
         try {
@@ -1828,18 +1853,24 @@
       if (frame.meshPromise) return frame.meshPromise;
       frame.meshPromise = (async () => {
         try {
-          if (!frame.bytes && (frame.file || frame.url)) {
+          if (!hasUsableFrameBytes(frame) && (frame.file || frame.url)) {
+            frame.bytes = null;
+            frame.bytesPromise = null;
             await ensureFrameBytes(index, frameList);
           }
+          const runtimePolicy = getRuntimeMemoryPolicy();
+          const bytesForMesh = runtimePolicy.releaseBytesAfterMesh
+            ? frame.bytes
+            : (frame.bytes ? frame.bytes.slice() : frame.bytes);
           const mesh = await setSplatFile(
             {
-            fileBytes: frame.bytes,
+            fileBytes: bytesForMesh,
             fileName: frame.name,
             },
           );
           mesh.visible = false;
           frame.mesh = mesh;
-          if (getRuntimeMemoryPolicy().releaseBytesAfterMesh) {
+          if (runtimePolicy.releaseBytesAfterMesh) {
             frame.bytes = null;
             frame.bytesPromise = null;
           }
@@ -2229,8 +2260,8 @@
           }
           await loadSceneByDirectory(normalized);
         } catch (e) {
-          console.error('Directory discovery failed:', e);
-          alert('Failed to list directory: ' + e.message);
+          console.error('Scene load failed:', e);
+          alert('Failed to load scene: ' + (e?.message || e));
           return false;
         }
         return true;
