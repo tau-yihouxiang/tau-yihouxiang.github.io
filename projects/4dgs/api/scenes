@@ -1,10 +1,6 @@
 {
   "scenes": {
-    "少年派": {
-      "urls": "projects/4dgs/public/少年派/*.sog"
-    },
-    "直播美女": {
-      "urls": "projects/4dgs/public/直播美女/*.sog"
-    }
+    "少年派": "projects/4dgs/public/少年派/*.sog",
+    "直播美女": "projects/4dgs/public/直播美女/*.sog"
   }
 }
