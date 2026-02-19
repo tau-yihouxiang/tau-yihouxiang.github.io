@@ -2013,17 +2013,6 @@
 
     function extractSceneUrls(sceneConfig) {
       if (typeof sceneConfig === 'string') {
-        // 直接当作 glob 字符串处理
-        const glob = sceneConfig;
-        const match = glob.match(/^(.*)\/(\\*|\*)\\.sog$/);
-        if (match) {
-          const base = match[1];
-          const files = [];
-          for (let i = 0; i <= 252; i += 4) {
-            files.push(`${base}/${String(i).padStart(4, '0')}.sog`);
-          }
-          return files;
-        }
         return [sceneConfig];
       }
 
@@ -2035,16 +2024,6 @@
       }
 
       if (typeof sceneConfig.urls === 'string') {
-        const glob = sceneConfig.urls;
-        const match = glob.match(/^(.*)\/(\\*|\*)\\.sog$/);
-        if (match) {
-          const base = match[1];
-          const files = [];
-          for (let i = 0; i <= 252; i += 4) {
-            files.push(`${base}/${String(i).padStart(4, '0')}.sog`);
-          }
-          return files;
-        }
         return [sceneConfig.urls];
       }
 
