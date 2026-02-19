@@ -1132,6 +1132,12 @@
     const IOS_MAX_RESIDENT_MESHES = 6;
     const DESKTOP_PRELOAD_AHEAD_FRAMES = 6;
     const DESKTOP_MAX_RESIDENT_MESHES = 18;
+    const IOS_WARMUP_BYTE_CONCURRENCY = 2;
+    const DESKTOP_WARMUP_BYTE_CONCURRENCY = 2;
+    const IOS_CACHE_SCENE_CONCURRENCY = 2;
+    const DESKTOP_CACHE_SCENE_CONCURRENCY = 2;
+    const IOS_CACHE_FRAME_BYTE_CONCURRENCY = 2;
+    const DESKTOP_CACHE_FRAME_BYTE_CONCURRENCY = 2;
     let maxFramesMode = FRAME_LIMIT_MODE_SHORT;
     let maxFramesToLoad = SHORT_MAX_FRAMES;
 
@@ -1498,6 +1504,30 @@
       setCaching(false);
     }
 
+    async function runIndexTasksWithConcurrency(totalCount, maxConcurrency, runTask, onProgress) {
+      if (!Number.isFinite(totalCount) || totalCount <= 0) return;
+      const safeTotal = Math.floor(totalCount);
+      const safeConcurrency = Math.max(1, Math.min(safeTotal, Math.floor(maxConcurrency) || 1));
+      let nextIndex = 0;
+      let completed = 0;
+
+      const worker = async () => {
+        while (true) {
+          const index = nextIndex;
+          nextIndex += 1;
+          if (index >= safeTotal) return;
+          await runTask(index);
+          completed += 1;
+          if (typeof onProgress === 'function') {
+            onProgress(completed, safeTotal, index);
+          }
+        }
+      };
+
+      const workers = Array.from({ length: safeConcurrency }, () => worker());
+      await Promise.all(workers);
+    }
+
     async function warmupPlaybackAssets(frameList = frames) {
       if (!Array.isArray(frameList) || frameList.length === 0) return true;
 
@@ -1513,6 +1543,11 @@
       const targetWarmupCount = Number.isFinite(warmupFrameCount)
         ? Math.max(1, Math.min(defaultWarmupCount, warmupFrameCount))
         : defaultWarmupCount;
+      const warmupConcurrency = shouldWarmupMeshes
+        ? 1
+        : (IS_IOS_DEVICE ? IOS_WARMUP_BYTE_CONCURRENCY : DESKTOP_WARMUP_BYTE_CONCURRENCY);
+      const cancellationError = new Error('Warmup cancelled');
+      cancellationError.name = 'WarmupCancelledError';
 
       if (shouldWarmupMeshes && !hasMissingFrameMeshes(frameList)) {
         return true;
@@ -1523,17 +1558,29 @@
       setCachingProgress(0);
 
       try {
-        for (let i = 0; i < targetWarmupCount; i += 1) {
-          if (taskId !== cachingTaskId) return false;
-          if (shouldWarmupMeshes) {
-            await ensureFrameMesh(i, frameList);
-          } else {
-            await ensureFrameBytes(i, frameList);
-          }
-          if (taskId !== cachingTaskId) return false;
-          setCachingProgress(((i + 1) / targetWarmupCount) * 100);
-        }
+        await runIndexTasksWithConcurrency(
+          targetWarmupCount,
+          warmupConcurrency,
+          async (i) => {
+            if (taskId !== cachingTaskId) throw cancellationError;
+            if (shouldWarmupMeshes) {
+              await ensureFrameMesh(i, frameList);
+            } else {
+              await ensureFrameBytes(i, frameList);
+            }
+            if (taskId !== cachingTaskId) throw cancellationError;
+          },
+          (completed) => {
+            if (taskId !== cachingTaskId) return;
+            setCachingProgress((completed / targetWarmupCount) * 100);
+          },
+        );
         return taskId === cachingTaskId;
+      } catch (error) {
+        if (error?.name === 'WarmupCancelledError') {
+          return false;
+        }
+        throw error;
       } finally {
         if (taskId === cachingTaskId) {
           setCaching(false);
@@ -2305,13 +2352,17 @@
       });
       sceneCache.set(cacheKey, sceneEntry);
 
-      for (let i = 0; i < sceneEntry.frames.length; i += 1) {
+      const frameByteConcurrency = IS_IOS_DEVICE
+        ? IOS_CACHE_FRAME_BYTE_CONCURRENCY
+        : DESKTOP_CACHE_FRAME_BYTE_CONCURRENCY;
+
+      await runIndexTasksWithConcurrency(sceneEntry.frames.length, frameByteConcurrency, async (i) => {
         await ensureFrameBytes(i, sceneEntry.frames);
         if (IS_IOS_DEVICE) {
           sceneEntry.frames[i].bytes = null;
           sceneEntry.frames[i].bytesPromise = null;
         }
-      }
+      });
       return true;
     }
 
@@ -2336,21 +2387,32 @@
         isCaching: true,
       });
 
+      const sceneConcurrency = IS_IOS_DEVICE
+        ? IOS_CACHE_SCENE_CONCURRENCY
+        : DESKTOP_CACHE_SCENE_CONCURRENCY;
+
       let done = 0;
-      for (const dir of targets) {
-        try {
-          await cacheDirectoryScene(dir);
-        } catch (e) {
-          console.warn('Cache scene failed:', dir, e);
-        }
-        done += 1;
-        setCacheButtonState({
-          label: `Caching ${done}/${targets.length}`,
-          progress: (done / targets.length) * 100,
-          disabled: true,
-          isCaching: true,
-        });
-      }
+      await runIndexTasksWithConcurrency(
+        targets.length,
+        sceneConcurrency,
+        async (index) => {
+          const dir = targets[index];
+          try {
+            await cacheDirectoryScene(dir);
+          } catch (e) {
+            console.warn('Cache scene failed:', dir, e);
+          }
+        },
+        (completed) => {
+          done = completed;
+          setCacheButtonState({
+            label: `Caching ${done}/${targets.length}`,
+            progress: (done / targets.length) * 100,
+            disabled: true,
+            isCaching: true,
+          });
+        },
+      );
 
       cacheButtonIdleLabel = `Cached ${done}/${targets.length}`;
       setCacheButtonState({
