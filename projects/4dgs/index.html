@@ -1501,11 +1501,18 @@
     async function warmupPlaybackAssets(frameList = frames) {
       if (!Array.isArray(frameList) || frameList.length === 0) return true;
 
-      const { maxResidentMeshes, warmupFrameCount } = getRuntimeMemoryPolicy();
-      const shouldWarmupMeshes = renderer.xr.isPresenting || !Number.isFinite(maxResidentMeshes);
+      const { maxResidentMeshes, warmupFrameCount, preloadAheadFrames } = getRuntimeMemoryPolicy();
+      const canKeepAllMeshesResident = Number.isFinite(maxResidentMeshes)
+        && frameList.length <= maxResidentMeshes;
+      const shouldWarmupMeshes = renderer.xr.isPresenting
+        || !Number.isFinite(maxResidentMeshes)
+        || canKeepAllMeshesResident;
+      const defaultWarmupCount = shouldWarmupMeshes
+        ? frameList.length
+        : Math.min(frameList.length, Math.max(1, preloadAheadFrames + 1));
       const targetWarmupCount = Number.isFinite(warmupFrameCount)
-        ? Math.max(1, Math.min(frameList.length, warmupFrameCount))
-        : frameList.length;
+        ? Math.max(1, Math.min(defaultWarmupCount, warmupFrameCount))
+        : defaultWarmupCount;
 
       if (shouldWarmupMeshes && !hasMissingFrameMeshes(frameList)) {
         return true;
