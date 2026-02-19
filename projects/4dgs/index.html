@@ -760,7 +760,7 @@
   </script>
   <script type="module">
     import * as THREE from "three";
-    import { SplatMesh, transcodeSpz, SparkControls, SparkRenderer, VRButton } from "@sparkjsdev/spark";
+    import { SplatMesh, SparkControls, SparkRenderer, VRButton } from "@sparkjsdev/spark";
 
     const sparkCanvasEl = document.querySelector(".spark-canvas");
     const scene = new THREE.Scene();
@@ -784,9 +784,6 @@
       optionalFeatures: ["hand-tracking"],
     });
 
-    // ── VR 3D Control Panel ──
-    // Canvas-textured plane rendered inside the VR scene
-    const ENABLE_VR_CONTROL_PANEL = false;
     const DEFAULT_WIN_W = 2.112, DEFAULT_WIN_H = 1.188;   // window opening in world meters (+10%)
     let winW = DEFAULT_WIN_W;
     let winH = DEFAULT_WIN_H;
@@ -796,27 +793,6 @@
     const VR_MAX_WIN_W = 3.0;
     const VR_MIN_WIN_H = 0.5;
     const VR_MAX_WIN_H = 1.8;
-    const VR_PANEL_W = 4200, VR_PANEL_H = 300;
-    const vrPanelCanvas = document.createElement('canvas');
-    vrPanelCanvas.width = VR_PANEL_W;
-    vrPanelCanvas.height = VR_PANEL_H;
-    const vrPanelCtx = vrPanelCanvas.getContext('2d');
-    const vrPanelTexture = new THREE.CanvasTexture(vrPanelCanvas);
-    vrPanelTexture.minFilter = THREE.LinearFilter;
-    vrPanelTexture.magFilter = THREE.LinearFilter;
-    vrPanelTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    const vrPanelMaterial = new THREE.MeshBasicMaterial({
-      map: vrPanelTexture, transparent: true, side: THREE.DoubleSide, depthTest: false,
-    });
-    const vrPanelMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(DEFAULT_WIN_W, DEFAULT_WIN_W * (VR_PANEL_H / VR_PANEL_W)),
-      vrPanelMaterial,
-    );
-    vrPanelMesh.renderOrder = 9999;
-    vrPanelMesh.frustumCulled = false;
-    vrPanelMesh.visible = ENABLE_VR_CONTROL_PANEL;
-    scene.add(vrPanelMesh);
-
     // ── VR Window Frame (mask) ──
     // A large dark-gray plane with a transparent rounded-rect hole in the center.
     // Outside the hole = opaque dark matte (blocks rear texture), inside the hole = transparent (shows 3DGS).
@@ -863,19 +839,6 @@
     const FRAME_DIST = 2.0;
     vrWindowMask.position.set(0, 0, -FRAME_DIST);
     vrFrameGroup.add(vrWindowMask);
-
-    // Place the control panel just below the window opening, fixed to the frame
-    vrPanelMesh.position.set(0, -(DEFAULT_WIN_H / 2) - 0.14, -FRAME_DIST + 0.01);
-    vrFrameGroup.add(vrPanelMesh);
-
-    // Button hit-areas in canvas pixel coords  [x, y, w, h]
-    const vrBtnAreas = {
-      playPause: [42,  30, 240, 240],
-      speedDown: [2574, 30, 270, 240],
-      speedUp:   [2574, 30, 270, 240],   // same rect, will cycle
-      reset:     [2898, 30, 270, 240],
-    };
-    const speedOptions = [0.5, 1, 1.5, 2, 3];
 
     function roundRect(ctx, x, y, w, h, r) {
       ctx.beginPath();
@@ -930,193 +893,9 @@
 
       maskTexture.needsUpdate = true;
 
-      const panelScale = winW / DEFAULT_WIN_W;
-      vrPanelMesh.scale.set(panelScale, panelScale, 1);
-      vrPanelMesh.position.set(0, -(winH / 2) - 0.14, -FRAME_DIST + 0.01);
     }
 
     drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
-
-    function drawVrPanel() {
-      const ctx = vrPanelCtx;
-      const W = VR_PANEL_W, H = VR_PANEL_H;
-      const S = 3;  // scale factor (canvas is 3× the logical layout)
-      ctx.clearRect(0, 0, W, H);
-
-      // Background pill
-      ctx.fillStyle = 'rgba(28, 28, 28, 0.82)';
-      roundRect(ctx, 0, 0, W, H, H / 2);
-      ctx.fill();
-
-      const cy = H / 2; // vertical center
-
-      // ── Play / Pause button (circle) ──
-      ctx.fillStyle = 'rgba(255,255,255,0.14)';
-      ctx.beginPath();
-      ctx.arc(54*S, cy, 36*S, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ccc';
-      ctx.font = `${28*S}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(isPlaying ? '❚❚' : '▶', 54*S, cy);
-
-      // ── Current time ──
-      const total = frames.length || 0;
-      const totalSeconds = total > 0 ? total / fps : 0;
-      const currentSeconds = total > 0 ? currentIndex / fps : 0;
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.font = `${26*S}px sans-serif`;
-      ctx.textAlign = 'left';
-      ctx.fillText(formatTime(currentSeconds), 106*S, cy);
-
-      // ── Progress bar ──
-      const barX = 210*S, barY = cy - 4*S, barW = 360*S, barH = 8*S, barR = 4*S;
-      // Track
-      ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      roundRect(ctx, barX, barY, barW, barH, barR);
-      ctx.fill();
-      // Fill
-      const progress = total > 1 ? currentIndex / (total - 1) : 0;
-      if (progress > 0) {
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        roundRect(ctx, barX, barY, Math.max(barH, barW * progress), barH, barR);
-        ctx.fill();
-      }
-      // Thumb
-      const thumbX = barX + barW * progress;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(thumbX, cy, 10*S, 0, Math.PI * 2);
-      ctx.fill();
-
-      // ── Total time ──
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.font = `${26*S}px sans-serif`;
-      ctx.textAlign = 'left';
-      ctx.fillText(formatTime(totalSeconds), 586*S, cy);
-
-      // ── Frame info ──
-      const idx = total ? (currentIndex + 1) : 0;
-      ctx.fillStyle = 'rgba(255,255,255,0.65)';
-      ctx.font = `${26*S}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText(`${idx}/${total}`, 740*S, cy);
-
-      // ── Speed selector (pill) ──
-      ctx.fillStyle = 'rgba(255,255,255,0.1)';
-      roundRect(ctx, 858*S, 18*S, 90*S, H - 36*S, 14*S);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.font = `${26*S}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText(`${speedMultiplier}x`, 903*S, cy - 2*S);
-      // Chevron
-      ctx.fillStyle = 'rgba(255,255,255,0.45)';
-      ctx.font = `${18*S}px sans-serif`;
-      ctx.fillText('▾', 935*S, cy + 2*S);
-
-      // ── Reset button ──
-      ctx.fillStyle = 'rgba(255,255,255,0.1)';
-      roundRect(ctx, 966*S, 18*S, 90*S, H - 36*S, 14*S);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.font = `${24*S}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText('Reset', 1011*S, cy);
-
-      vrPanelTexture.needsUpdate = true;
-    }
-
-    // ── XR Controllers + Raycasting ──
-    const xrController0 = renderer.xr.getController(0);
-    const xrController1 = renderer.xr.getController(1);
-    scene.add(xrController0);
-    scene.add(xrController1);
-
-    // Visible ray lines
-    const rayGeom = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 0, -2),
-    ]);
-    const rayMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
-    const ray0 = new THREE.Line(rayGeom.clone(), rayMat.clone());
-    const ray1 = new THREE.Line(rayGeom.clone(), rayMat.clone());
-    ray0.visible = false;
-    ray1.visible = false;
-    xrController0.add(ray0);
-    xrController1.add(ray1);
-
-    // Pointer dot (highlight on panel)
-    const dotGeom = new THREE.SphereGeometry(0.006, 8, 8);
-    const dotMat = new THREE.MeshBasicMaterial({ color: 0x44aaff, depthTest: false });
-    const pointerDot = new THREE.Mesh(dotGeom, dotMat);
-    pointerDot.renderOrder = 10001;
-    pointerDot.frustumCulled = false;
-    pointerDot.visible = false;
-    scene.add(pointerDot);
-
-    const vrRaycaster = new THREE.Raycaster();
-    const _tempMatrix = new THREE.Matrix4();
-
-    function hitTestPanel(controller) {
-      _tempMatrix.identity().extractRotation(controller.matrixWorld);
-      vrRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-      vrRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(_tempMatrix);
-      const hits = vrRaycaster.intersectObject(vrPanelMesh);
-      if (hits.length > 0) {
-        const uv = hits[0].uv;
-        if (uv) {
-          return {
-            point: hits[0].point,
-            px: uv.x * VR_PANEL_W,
-            py: (1 - uv.y) * VR_PANEL_H,
-          };
-        }
-      }
-      return null;
-    }
-
-    function isInsideRect(px, py, rect) {
-      return px >= rect[0] && px <= rect[0] + rect[2] && py >= rect[1] && py <= rect[1] + rect[3];
-    }
-
-    async function handleVrPanelClick(px, py) {
-      // Play/Pause
-      if (isInsideRect(px, py, vrBtnAreas.playPause)) {
-        if (isPlaying) { setPlaying(false); }
-        else if (frames.length) {
-          if (!loadedSplat || !loadedSplat.isInitialized) {
-            await showFrame(currentIndex);
-          }
-          const warmupDone = await warmupPlaybackAssets(frames);
-          if (!warmupDone) return;
-          setPlaying(true);
-        }
-      }
-      // Progress bar click (barX=630, barW=1080, full height)  — 3× scale
-      else if (px >= 600 && px <= 1740 && py >= 0 && py <= VR_PANEL_H) {
-        const total = frames.length;
-        if (total > 1) {
-          const frac = Math.max(0, Math.min(1, (px - 630) / 1080));
-          const idx = Math.round(frac * (total - 1));
-          setPlaying(false);
-          showFrame(idx);
-        }
-      }
-      // Speed cycle
-      else if (isInsideRect(px, py, vrBtnAreas.speedDown)) {
-        const idx = speedOptions.indexOf(speedMultiplier);
-        const next = (idx + 1) % speedOptions.length;
-        speedMultiplier = speedOptions[next];
-        speedSelect.value = String(speedMultiplier);
-        if (isPlaying) { stopPlayback(); startPlayback(); }
-      }
-      // Reset
-      else if (isInsideRect(px, py, vrBtnAreas.reset)) {
-        resetViewState();
-      }
-    }
 
     function centerSplatInVrWindow() {
       if (!loadedSplat) return;
@@ -1183,18 +962,6 @@
       centerSplatInVrWindow();
     }
 
-    function onXrSelect(event) {
-      if (!ENABLE_VR_CONTROL_PANEL) return;
-      const hit = hitTestPanel(event.target);
-      if (hit) {
-        void handleVrPanelClick(hit.px, hit.py);
-      }
-    }
-    if (ENABLE_VR_CONTROL_PANEL) {
-      xrController0.addEventListener('select', onXrSelect);
-      xrController1.addEventListener('select', onXrSelect);
-    }
-
     let shouldResetViewAfterVrExit = false;
     let vrFrameInitialized = false;
     renderer.xr.addEventListener('sessionstart', () => {
@@ -1202,11 +969,8 @@
         vrButton.setAttribute('aria-label', 'Exit VR');
         vrButton.setAttribute('title', 'Exit VR');
       }
-      vrPanelMesh.visible = ENABLE_VR_CONTROL_PANEL;
       vrFrameGroup.visible = true;
       vrWindowMask.visible = true;
-      ray0.visible = ENABLE_VR_CONTROL_PANEL;
-      ray1.visible = ENABLE_VR_CONTROL_PANEL;
       vrFrameInitialized = false;
       vrFrameGroup.position.set(0, 0, 0);
       vrFrameGroup.rotation.set(0, 0, 0);
@@ -1214,21 +978,14 @@
       localFrame.rotation.set(0, 0, 0);
       localFrame.scale.set(1, 1, 1);
       drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
-      if (ENABLE_VR_CONTROL_PANEL) {
-        drawVrPanel();
-      }
     });
     renderer.xr.addEventListener('sessionend', () => {
       if (vrButton) {
         vrButton.setAttribute('aria-label', 'Enter VR');
         vrButton.setAttribute('title', 'Enter VR');
       }
-      vrPanelMesh.visible = false;
       vrFrameGroup.visible = false;
       vrWindowMask.visible = false;
-      ray0.visible = false;
-      ray1.visible = false;
-      pointerDot.visible = false;
       localFrame.position.set(0, 0, 0);
       localFrame.rotation.set(0, 0, 0);
       localFrame.scale.set(1, 1, 1);
@@ -1292,25 +1049,6 @@
       }
       orbitYaw = Math.atan2(offset.x, offset.z);
       orbitPitch = Math.asin(THREE.MathUtils.clamp(offset.y / orbitDistance, -1, 1));
-    }
-
-    function setOrbitFromBounds(bounds) {
-      const size = new THREE.Vector3();
-      bounds.getSize(size);
-      bounds.getCenter(orbitTarget);
-      const maxDim = Math.max(size.x, size.y, size.z);
-      orbitDistance = Math.max(0.1, maxDim * 1.8);
-      orbitYaw = 0;
-      orbitPitch = 0;
-      applyOrbit();
-      if (!hasInitialOrbit) {
-        initialOrbitTarget = orbitTarget.clone();
-        initialOrbitYaw = orbitYaw;
-        initialOrbitPitch = orbitPitch;
-        initialOrbitDistance = orbitDistance;
-        hasInitialOrbit = true;
-        lastCameraPos.copy(camera.position);
-      }
     }
 
     function resetView() {
@@ -1511,6 +1249,67 @@
       return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
+    function extractFrameSequence(name) {
+      if (typeof name !== 'string') return null;
+      const match = name.match(/(\d+)(?!.*\d)/);
+      if (!match) return null;
+      const parsed = Number(match[1]);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function getFrameTimeUnits(index, frameList = frames) {
+      const frame = frameList[index];
+      if (!frame) return index;
+      if (Number.isFinite(frame.timeUnits)) {
+        return frame.timeUnits;
+      }
+      const parsed = extractFrameSequence(frame.name);
+      if (Number.isFinite(parsed)) {
+        frame.timeUnits = parsed;
+        return parsed;
+      }
+      frame.timeUnits = index;
+      return frame.timeUnits;
+    }
+
+    function getTypicalFrameStepUnits(frameList = frames) {
+      if (!Array.isArray(frameList) || frameList.length < 2) return 1;
+      let minPositive = Number.POSITIVE_INFINITY;
+      for (let i = 1; i < frameList.length; i += 1) {
+        const prev = getFrameTimeUnits(i - 1, frameList);
+        const curr = getFrameTimeUnits(i, frameList);
+        const delta = curr - prev;
+        if (delta > 0 && delta < minPositive) {
+          minPositive = delta;
+        }
+      }
+      return Number.isFinite(minPositive) ? minPositive : 1;
+    }
+
+    function getNextFrameDelayMs(index, frameList = frames) {
+      const total = frameList.length;
+      if (total <= 1) {
+        return 1000 / (fps * Math.max(speedMultiplier, 0.001));
+      }
+
+      const currentUnits = getFrameTimeUnits(index, frameList);
+      const nextIndex = (index + 1) % total;
+      const nextUnits = getFrameTimeUnits(nextIndex, frameList);
+
+      let deltaUnits = nextUnits - currentUnits;
+      if (deltaUnits <= 0) {
+        const firstUnits = getFrameTimeUnits(0, frameList);
+        const lastUnits = getFrameTimeUnits(total - 1, frameList);
+        const typicalStep = getTypicalFrameStepUnits(frameList);
+        const cycleUnits = Math.max(typicalStep, (lastUnits - firstUnits) + typicalStep);
+        deltaUnits += cycleUnits;
+      }
+
+      const safeSpeed = Math.max(speedMultiplier, 0.001);
+      const delayMs = (1000 * deltaUnits) / (fps * safeSpeed);
+      return Math.max(1, delayMs);
+    }
+
     function updateIndicator() {
       const total = frames.length || 0;
       const idx = total ? (currentIndex + 1) : 0;
@@ -1523,8 +1322,12 @@
       const total = frames.length || 0;
       progressEl.max = total > 0 ? String(total - 1) : '0';
       progressEl.value = total > 0 ? String(currentIndex) : '0';
-      const totalSeconds = total > 0 ? total / fps : 0;
-      const currentSeconds = total > 0 ? currentIndex / fps : 0;
+      const safeFps = Math.max(fps, 0.001);
+      const firstUnits = total > 0 ? getFrameTimeUnits(0, frames) : 0;
+      const lastUnits = total > 0 ? getFrameTimeUnits(total - 1, frames) : 0;
+      const currentUnits = total > 0 ? getFrameTimeUnits(currentIndex, frames) : 0;
+      const totalSeconds = total > 0 ? Math.max(0, (lastUnits - firstUnits) / safeFps) : 0;
+      const currentSeconds = total > 0 ? Math.max(0, (currentUnits - firstUnits) / safeFps) : 0;
       timeCurrentEl.textContent = formatTime(currentSeconds);
       timeTotalEl.textContent = formatTime(totalSeconds);
     }
@@ -1585,20 +1388,28 @@
       }
     }
 
-    function nextFrame() { showFrame(currentIndex + 1); }
+    async function nextFrame() { await showFrame(currentIndex + 1); }
+
+    function scheduleNextPlaybackTick() {
+      if (!isPlaying || playbackTimer || !frames.length) return;
+      const delayMs = getNextFrameDelayMs(currentIndex, frames);
+      playbackTimer = setTimeout(async () => {
+        playbackTimer = null;
+        if (!isPlaying || !frames.length) return;
+        if (!isLoadingFrame) {
+          await nextFrame();
+        }
+        scheduleNextPlaybackTick();
+      }, delayMs);
+    }
 
     function startPlayback() {
-      if (playbackTimer) return;
-      playbackTimer = setInterval(() => {
-        if (!isLoadingFrame) {
-          nextFrame();
-        }
-      }, 1000 / (fps * speedMultiplier));
+      scheduleNextPlaybackTick();
     }
 
     function stopPlayback() {
       if (playbackTimer) {
-        clearInterval(playbackTimer);
+        clearTimeout(playbackTimer);
         playbackTimer = null;
       }
     }
@@ -1795,23 +1606,6 @@
           vrFrameInitialized = true;
         }
 
-        if (ENABLE_VR_CONTROL_PANEL) {
-          // Redraw panel canvas each frame
-          drawVrPanel();
-
-          // Update pointer dot from controllers
-          pointerDot.visible = false;
-          for (const ctrl of [xrController0, xrController1]) {
-            const hit = hitTestPanel(ctrl);
-            if (hit) {
-              pointerDot.position.copy(hit.point);
-              pointerDot.visible = true;
-              break;
-            }
-          }
-        } else {
-          pointerDot.visible = false;
-        }
       }
 
       renderer.render(scene, camera);
@@ -1856,7 +1650,14 @@
     });
 
     function sortFilesByName(files) {
-      return files.slice().sort((a, b) => a.name.localeCompare(b.name));
+      return files.slice().sort((a, b) => {
+        const aSeq = extractFrameSequence(a?.name);
+        const bSeq = extractFrameSequence(b?.name);
+        if (Number.isFinite(aSeq) && Number.isFinite(bSeq) && aSeq !== bSeq) {
+          return aSeq - bSeq;
+        }
+        return String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { numeric: true });
+      });
     }
 
     const sceneCache = new Map();
@@ -1867,56 +1668,75 @@
     }
 
     function createSceneFramesFromUrls(urls) {
-      return limitFrames(urls).map(u => ({
-        url: u,
-        name: u.split('/').pop().split('?')[0],
-        file: null,
-        bytes: null,
-        mesh: null,
-        meshPromise: null,
-        bytesPromise: null,
-      }));
+      return limitFrames(urls).map((u, index) => {
+        const name = u.split('/').pop().split('?')[0];
+        const parsed = extractFrameSequence(name);
+        return {
+          url: u,
+          name,
+          timeUnits: Number.isFinite(parsed) ? parsed : index,
+          file: null,
+          bytes: null,
+          mesh: null,
+          meshPromise: null,
+          bytesPromise: null,
+        };
+      });
+    }
+
+    async function switchToFrameList(nextFrames, {
+      warmup = false,
+      ensureFirstBytes = false,
+      releaseOnlyIfChanged = false,
+    } = {}) {
+      cancelCachingTask();
+      const previousFrames = frames;
+      frames = nextFrames;
+      currentIndex = 0;
+      setPlaying(false);
+
+      if (!releaseOnlyIfChanged || previousFrames !== frames) {
+        releaseFrameListResources(previousFrames);
+      }
+
+      showViewerInterface();
+
+      if (frames.length === 0) return;
+      if (ensureFirstBytes) {
+        await ensureFrameBytes(0, frames);
+      }
+      await showFrame(0);
+      if (warmup) {
+        await startPlaybackAfterWarmup(frames);
+      }
     }
 
     async function loadSplatFiles(files) {
-      cancelCachingTask();
-      const previousFrames = frames;
       const ordered = sortFilesByName(files);
-      const loaded = ordered.map((f) => ({
+      const loadedFrames = limitFrames(ordered.map((f) => ({
         name: f.name,
+        timeUnits: Number.isFinite(extractFrameSequence(f.name)) ? extractFrameSequence(f.name) : null,
         file: f,
         bytes: null,
         mesh: null,
         meshPromise: null,
         bytesPromise: null,
-      }));
+      })));
 
-      frames = limitFrames(loaded);
-      currentIndex = 0;
-      setPlaying(false);
-      releaseFrameListResources(previousFrames);
-
-      showViewerInterface();
-
-      if (frames.length > 0) {
-        await ensureFrameBytes(0, frames);
-        await showFrame(0);
-        await startPlaybackAfterWarmup(frames);
-      }
+      await switchToFrameList(loadedFrames, {
+        warmup: true,
+        ensureFirstBytes: true,
+      });
     }
 
     var loadedSplat;
-    async function setSplatFile(init, { updateOrbit } = { updateOrbit: true }) {
+    async function setSplatFile(init) {
       const nextSplat = new SplatMesh(init);
       nextSplat.quaternion.set(1, 0, 0, 0);
       nextSplat.scale.setScalar(3);
       nextSplat.visible = false;
       scene.add(nextSplat);
       await nextSplat.initialized;
-      if (updateOrbit) {
-        const bounds = nextSplat.getBoundingBox(false);
-        setOrbitFromBounds(bounds);
-      }
       nextSplat.visible = true;
       return nextSplat;
     }
@@ -1957,7 +1777,6 @@
             fileBytes: frame.bytes,
             fileName: frame.name,
             },
-            { updateOrbit: false },
           );
           mesh.visible = false;
           frame.mesh = mesh;
@@ -2046,8 +1865,6 @@
 
 
     async function loadSceneByDirectory(dirUrl) {
-      cancelCachingTask();
-      const previousFrames = frames;
       const normalized = normalizeDirectoryUrl(dirUrl);
       const cacheKey = getSceneCacheKey(normalized);
       let sceneEntry = sceneCache.get(cacheKey);
@@ -2060,49 +1877,32 @@
         sceneCache.set(cacheKey, sceneEntry);
       }
 
-      frames = sceneEntry.frames;
-      currentIndex = 0;
-      setPlaying(false);
-      if (previousFrames !== frames) {
-        releaseFrameListResources(previousFrames);
-      }
-      showViewerInterface();
-
-      if (frames.length > 0) {
-        await ensureFrameBytes(0, frames);
-        await showFrame(0);
-        await startPlaybackAfterWarmup(frames);
-      }
+      await switchToFrameList(sceneEntry.frames, {
+        warmup: true,
+        ensureFirstBytes: true,
+        releaseOnlyIfChanged: true,
+      });
     }
 
 
     async function loadSplatURL(splatURL) {
-      cancelCachingTask();
-      const previousFrames = frames;
       const fileName = splatURL.split("/").pop().split("?")[0];
-      frames = [{ url: splatURL, name: fileName }];
-      currentIndex = 0;
-      setPlaying(false);
-      releaseFrameListResources(previousFrames);
-      showViewerInterface();
-      await showFrame(0);
+      await switchToFrameList([
+        {
+          url: splatURL,
+          name: fileName,
+          timeUnits: Number.isFinite(extractFrameSequence(fileName)) ? extractFrameSequence(fileName) : 0,
+          file: null,
+          bytes: null,
+          mesh: null,
+          meshPromise: null,
+          bytesPromise: null,
+        },
+      ]);
     }
 
     async function loadSplatURLs(urls) {
-      cancelCachingTask();
-      const previousFrames = frames;
-      frames = limitFrames(urls).map(u => ({
-        url: u,
-        name: u.split('/').pop().split('?')[0],
-        file: null, bytes: null, mesh: null, meshPromise: null, bytesPromise: null,
-      }));
-      currentIndex = 0;
-      setPlaying(false);
-      releaseFrameListResources(previousFrames);
-      showViewerInterface();
-      if (frames.length > 0) {
-        await showFrame(0);
-      }
+      await switchToFrameList(createSceneFramesFromUrls(urls));
     }
 
     // Expand a URL pattern with {start..end} into an array of URLs
@@ -2121,8 +1921,8 @@
       return urls;
     }
 
-    const SPLAT_EXTS = ['.ply', '.spz', '.splat', '.ksplat'];
-    const SCENES_MANIFEST_URL = './scenes.json';
+    const SPLAT_EXTS = ['.ply', '.spz', '.splat', '.ksplat', '.sog'];
+    const SCENES_API_URL = './api/scenes';
     let sceneCatalogPromise = null;
 
     function normalizeCatalogKey(input) {
@@ -2133,12 +1933,17 @@
       if (sceneCatalogPromise) return sceneCatalogPromise;
       sceneCatalogPromise = (async () => {
         try {
-          const resp = await fetch(SCENES_MANIFEST_URL, { cache: 'no-store' });
-          if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
-          const payload = await resp.json();
-          return payload?.scenes && typeof payload.scenes === 'object' ? payload.scenes : {};
+          const apiResp = await fetch(SCENES_API_URL, { cache: 'no-store' });
+          if (apiResp.ok) {
+            const apiPayload = await apiResp.json();
+            if (apiPayload?.scenes && typeof apiPayload.scenes === 'object') {
+              return apiPayload.scenes;
+            }
+          }
+          console.warn('Dynamic scenes API returned unexpected payload.');
+          return {};
         } catch (e) {
-          console.warn('Failed to load scenes manifest:', e);
+          console.warn('Failed to load dynamic scenes API:', e);
           return {};
         }
       })();
@@ -2178,7 +1983,6 @@
       return limitFrames(urls);
     }
 
-    const urlFormEl = document.querySelector('.url-form');
     const urlDirSelectEl = document.querySelector('.url-dir-select');
     const cacheAllBtnEl = document.querySelector('.cache-all-button');
     const cacheAllProgressEl = document.querySelector('.cache-all-progress');
@@ -2346,7 +2150,7 @@
           if (!sceneCache.has(cacheKey)) {
             const urls = await discoverSplatFiles(normalized);
             if (urls.length === 0) {
-              alert('No .ply / .spz / .splat / .ksplat files found at that URL');
+              alert('No .ply / .spz / .splat / .ksplat / .sog files found at that URL');
               return false;
             }
             sceneCache.set(cacheKey, {
@@ -2450,10 +2254,6 @@
       });
     }
 
-    urlFormEl.addEventListener('submit', async function handleEnterKey(event) {
-      event.preventDefault();
-    });
-
     urlDirSelectEl?.addEventListener('change', async () => {
       const selected = urlDirSelectEl.value;
       if (!selected) return;
@@ -2526,7 +2326,7 @@
         <a href="./"><img src="./pico-viewer.png" alt="Pico Viewer Logo" /></a>
       </div>
       <div class="drop-zone">Drag and drop splat files here</div>
-      <input id="file-input" class="hidden" accept=".ply,.spz,.splat,.ksplat" type="file" multiple />
+      <input id="file-input" class="hidden" accept=".ply,.spz,.splat,.ksplat,.sog" type="file" multiple />
       <form class="url-form">
         <div class="url-row">
           <select class="url-select url-dir-select" aria-label="Folder list">

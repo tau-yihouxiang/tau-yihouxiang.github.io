@@ -9,7 +9,7 @@ This folder is a standalone static webpage package.
 - `vendor/three/` (Three.js runtime)
 - `public/` (local frame assets)
 - `pico-logo.png`, `pico-viewer.png`, SVG assets
-- `scenes.json` (scene list config)
+- `serve.js` (local server with dynamic scene discovery API)
 
 ## How to deploy to GitHub Pages
 
@@ -20,49 +20,14 @@ This folder is a standalone static webpage package.
 
 ## Configure your scenes
 
-Edit `scenes.json`:
+Place your scene folders under `public/`, for example:
 
-Default config already points to local assets under `./public/`.
+- `public/bear/0000.spz`
+- `public/少年派/0000.sog`
 
-```json
-{
-  "scenes": {
-    "your-scene": {
-      "urls": [
-        "https://your-cdn/path/frame_0001.spz",
-        "https://your-cdn/path/frame_0002.spz"
-      ]
-    }
-  }
-}
-```
-
-You can also use this format:
-
-```json
-{
-  "scenes": {
-    "your-scene": {
-      "baseUrl": "https://your-cdn/path/",
-      "files": ["frame_0001.spz", "frame_0002.spz"]
-    }
-  }
-}
-```
-
-Or a pattern:
-
-```json
-{
-  "scenes": {
-    "your-scene": {
-      "pattern": "https://your-cdn/path/frame_{0001..0032}.spz"
-    }
-  }
-}
-```
+When running `serve.js`, the UI calls `/api/scenes` and auto-discovers all subfolders and supported frame files.
 
 ## Notes
 
-- This is a static package: no backend API is required.
-- If you open `index.html` directly with `file://`, browser CORS may block `scenes.json`; use any static host/server.
+- This package now depends on `/api/scenes` for folder discovery.
+- If you open `index.html` directly with `file://`, folder discovery will not work; use `node serve.js` or another server that provides `/api/scenes`.

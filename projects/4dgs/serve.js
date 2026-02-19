@@ -21,9 +21,66 @@ const mimeTypes = {
   '.wasm': 'application/wasm',
 };
 
+const SCENE_EXTS = new Set(['.ply', '.spz', '.splat', '.ksplat', '.sog']);
+
+function isSceneFile(fileName) {
+  const ext = path.extname(fileName).toLowerCase();
+  return SCENE_EXTS.has(ext);
+}
+
+async function buildScenesCatalog() {
+  const scenes = {};
+  const publicRoot = path.join(root, 'public');
+
+  let entries = [];
+  try {
+    entries = await fs.readdir(publicRoot, { withFileTypes: true });
+  } catch (err) {
+    const code = err && typeof err === 'object' && 'code' in err ? err.code : '';
+    if (code === 'ENOENT') {
+      return { scenes };
+    }
+    throw err;
+  }
+
+  const dirs = entries
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+  for (const dirName of dirs) {
+    const dirPath = path.join(publicRoot, dirName);
+    const children = await fs.readdir(dirPath, { withFileTypes: true });
+    const files = children
+      .filter(entry => entry.isFile() && isSceneFile(entry.name))
+      .map(entry => entry.name)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+    if (files.length === 0) continue;
+
+    scenes[dirName] = {
+      baseUrl: `./public/${dirName}/`,
+      files,
+    };
+  }
+
+  return { scenes };
+}
+
 const requestHandler = async (req, res) => {
   try {
     const requestedPath = decodeURIComponent((req.url || '/').split('?')[0]);
+
+    if (requestedPath === '/api/scenes') {
+      const payload = await buildScenesCatalog();
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+      res.end(JSON.stringify(payload));
+      return;
+    }
+
     const fullPath = path.join(root, requestedPath);
     const safePath = path.normalize(fullPath);
 
