@@ -1518,6 +1518,14 @@
     }
 
     window.addEventListener('keydown', (event) => {
+      if (event.code === 'Escape') {
+        const xrSession = renderer.xr.getSession();
+        if (xrSession) {
+          event.preventDefault();
+          void xrSession.end();
+          return;
+        }
+      }
       if (event.code in orbitKeyState) {
         orbitKeyState[event.code] = true;
         event.preventDefault();
