@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pico 6DoF</title>
+  <title>PICO 6DoF</title>
   <style>
     * {
       box-sizing: border-box;
@@ -63,8 +63,8 @@
 
     .logo {
       position: absolute;
-      top: clamp(8px, 1.8vw, 16px);
-      left: clamp(8px, 1.8vw, 16px);
+      top: clamp(4px, 1vw, 10px);
+      left: clamp(4px, 1vw, 10px);
       z-index: 2;
       background: rgba(255, 255, 255, 0.2);
       padding: clamp(4px, 0.9vw, 6px) clamp(6px, 1.2vw, 8px);
@@ -80,6 +80,61 @@
       max-width: 24vw;
       height: auto;
       display: block;
+    }
+
+    .scene-title-overlay {
+      position: absolute;
+      top: clamp(4px, 1vw, 10px);
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+      max-width: min(70vw, 680px);
+      padding: 6px 12px;
+      border-radius: 10px;
+      background: rgba(20, 20, 20, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.94);
+      font-size: clamp(0.75rem, 1.4vw, 0.9rem);
+      line-height: 1.2;
+      text-align: center;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.15s ease;
+    }
+
+    .scene-title-overlay.has-text {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .viewer-close-button {
+      position: absolute;
+      top: clamp(4px, 1vw, 10px);
+      right: clamp(4px, 1vw, 10px);
+      z-index: 2;
+      width: clamp(28px, 3.2vw, 34px);
+      height: clamp(28px, 3.2vw, 34px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      background: rgba(20, 20, 20, 0.58);
+      color: rgba(255, 255, 255, 0.95);
+      font-size: clamp(0.92rem, 2vw, 1.1rem);
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .viewer-close-button:hover {
+      background: rgba(42, 42, 42, 0.75);
     }
 
     .hero-logo {
@@ -116,7 +171,7 @@
     }
 
     .drop-zone {
-      max-width: 500px;
+      max-width: 760px;
       padding-top: 4rem;
       padding-bottom: 4rem;
     }
@@ -145,20 +200,147 @@
       justify-content: center;
     }
 
+    .language-row {
+      width: 100%;
+      max-width: 760px;
+      margin: 0.2rem auto 0.45rem auto;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+      padding: 0 4px;
+      box-sizing: border-box;
+    }
+
+    .language-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .language-label {
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.8);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .language-select {
+      width: auto;
+      min-width: 108px;
+      max-width: 160px;
+      margin: 0;
+      padding: 0.45rem 0.65rem;
+      font-size: 0.72rem;
+      border-radius: 8px;
+      text-align-last: center;
+      -moz-text-align-last: center;
+    }
+
     .url-row {
       width: 100%;
-      max-width: 500px;
+      max-width: 760px;
       display: grid;
-      grid-template-columns: 2fr 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: 10px;
       margin: 0.5rem auto;
     }
 
     .url-row .url-select,
-    .url-row .frame-limit-wrap {
+    .url-row .frame-limit-wrap,
+    .url-row .cache-all-button {
       width: 100%;
       max-width: none;
       margin: 0;
+    }
+
+    .scene-preview-grid {
+      width: 100%;
+      max-width: 760px;
+      margin: 0.35rem auto 0.5rem auto;
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 10px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-bottom: 4px;
+      scroll-behavior: smooth;
+    }
+
+    .scene-preview-status {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px dashed rgba(255, 255, 255, 0.18);
+      background: rgba(47, 47, 47, 0.78);
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.72rem;
+      text-align: center;
+      padding: 0.85rem 0.7rem;
+    }
+
+    .scene-card {
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(47, 47, 47, 0.95);
+      border-radius: 10px;
+      padding: 8px;
+      cursor: pointer;
+      text-align: left;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 0 0 180px;
+      transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .scene-card:hover {
+      background: rgb(58, 58, 58);
+      border-color: rgba(255, 255, 255, 0.38);
+      transform: translateY(-1px);
+    }
+
+    .scene-card.is-selected {
+      border-color: rgba(122, 205, 152, 0.95);
+      box-shadow: 0 0 0 1px rgba(122, 205, 152, 0.35) inset;
+    }
+
+    .scene-card.is-loading {
+      opacity: 0.78;
+      cursor: default;
+    }
+
+    .scene-card-thumb {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 7px;
+      overflow: hidden;
+      background: rgb(35, 35, 35);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .scene-card-thumb img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    .scene-card-thumb-fallback {
+      font-size: 0.68rem;
+      color: rgba(255, 255, 255, 0.5);
+      letter-spacing: 0.02em;
+    }
+
+    .scene-card-title {
+      font-size: 0.74rem;
+      line-height: 1.25;
+      color: rgba(255, 255, 255, 0.92);
+      text-align: center;
+      word-break: break-word;
     }
 
     .frame-limit-wrap {
@@ -197,7 +379,7 @@
 
     .cache-all-button {
       width: 100%;
-      max-width: 500px;
+      max-width: 760px;
       margin: 0.5rem auto 0.25rem auto;
       padding: 0.75rem;
       border: none;
@@ -212,6 +394,15 @@
       align-items: center;
       justify-content: center;
       text-align: center;
+    }
+
+    .url-row .cache-all-button {
+      height: 100%;
+      min-height: 42px;
+      margin: 0;
+      max-width: none;
+      padding: 0.75rem 0.6rem;
+      border-radius: 6px;
     }
 
     .cache-all-progress {
@@ -389,10 +580,46 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 100%;
-      height: 100%;
-      font-size: 1.1em;
-      letter-spacing: -2px;
+      width: 18px;
+      height: 18px;
+      position: relative;
+      color: transparent;
+      font-size: 0;
+      line-height: 0;
+    }
+
+    .controls .play-toggle .play-icon::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-42%, -50%);
+      width: 0;
+      height: 0;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 10px solid #fff;
+    }
+
+    .controls .play-toggle.is-playing .play-icon::before,
+    .controls .play-toggle.is-playing .play-icon::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 4px;
+      height: 12px;
+      border-radius: 1px;
+      background: #fff;
+      transform: translateY(-50%);
+    }
+
+    .controls .play-toggle.is-playing .play-icon::before {
+      left: 4px;
+      border: none;
+    }
+
+    .controls .play-toggle.is-playing .play-icon::after {
+      right: 4px;
     }
 
     .controls .progress-wrap {
@@ -663,9 +890,30 @@
       }
 
       .url-row,
+      .language-row,
+      .scene-preview-grid,
       .cache-all-button,
       .drop-zone {
         max-width: 100%;
+      }
+
+      .scene-card {
+        flex-basis: 168px;
+      }
+
+      .language-row {
+        gap: 8px;
+        padding: 0 2px;
+        justify-content: flex-end;
+      }
+
+      .language-group {
+        gap: 6px;
+      }
+
+      .language-select {
+        min-width: 92px;
+        padding: 0.4rem 0.55rem;
       }
 
       .controls {
@@ -745,6 +993,27 @@
         min-width: 0;
         font-size: 0.76em;
       }
+
+      .scene-title-overlay {
+        max-width: calc(100% - 128px);
+        padding: 5px 9px;
+        font-size: 0.74rem;
+      }
+
+      .logo {
+        transform: scale(0.7);
+        transform-origin: top left;
+      }
+
+      .scene-title-overlay {
+        transform: translateX(-50%) scale(0.7);
+        transform-origin: top center;
+      }
+
+      .viewer-close-button {
+        transform: scale(0.7);
+        transform-origin: top right;
+      }
     }
   </style>
 </head>
@@ -761,6 +1030,149 @@
   <script type="module">
     import * as THREE from "three";
     import { SplatMesh, SparkControls, SparkRenderer, VRButton } from "@sparkjsdev/spark";
+
+    const LANG_STORAGE_KEY = 'pico-ui-language';
+
+    function normalizeLanguageCode(raw) {
+      const value = String(raw || '').trim().toLowerCase();
+      if (value.startsWith('zh')) return 'zh';
+      if (value.startsWith('en')) return 'en';
+      return '';
+    }
+
+    function resolveUiLanguage() {
+      const urlLang = normalizeLanguageCode(new URLSearchParams(window.location.search).get('lang'));
+      if (urlLang) return urlLang;
+      try {
+        const stored = normalizeLanguageCode(localStorage.getItem(LANG_STORAGE_KEY));
+        if (stored) return stored;
+      } catch {
+      }
+      const browserLang = normalizeLanguageCode(navigator.language || navigator.userLanguage || 'en');
+      return browserLang || 'en';
+    }
+
+    const UI_LANG = resolveUiLanguage();
+    document.documentElement.lang = UI_LANG === 'zh' ? 'zh-CN' : 'en';
+
+    const I18N_TEXT = {
+      en: {
+        heroTitle: 'PICO 6DoF Player',
+        dragDrop: 'Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat) here',
+        folderList: 'Folder list',
+        frameRange: 'Frame range',
+        selectFolder: 'Select folder...',
+        shortFrames: 'Short (16 Frames)',
+        mediumFrames: 'Medium (32 Frames)',
+        longFrames: 'Long (All Frames)',
+        import: 'Import',
+        reset: 'Reset',
+        play: 'Play',
+        pause: 'Pause',
+        enterVr: 'Enter VR',
+        exitVr: 'Exit VR',
+        loadingFolders: 'Loading folders...',
+        folderUnavailable: 'Folder list unavailable',
+        noFolders: 'No folders',
+        loadingScenePreviews: 'Loading scene previews...',
+        scenePreviewsUnavailable: 'Scene previews unavailable',
+        noScenePreviews: 'No scene previews found',
+        noPreview: 'No preview',
+        cache: 'Cache All',
+        noScenesFound: 'No scenes found',
+        cachingProgress: 'Caching {done}/{total}',
+        cachedProgress: 'Cached {done}/{total}',
+        noSplatFilesAtUrl: 'No .ply / .spz / .splat / .ksplat / .sog files found at that URL',
+        failedToLoadScene: 'Failed to load scene: {message}',
+        language: 'Language',
+        langZh: '中文',
+        langEn: 'English',
+        importedFiles: 'Imported Files',
+      },
+      zh: {
+        heroTitle: 'PICO 6DoF 播放器',
+        dragDrop: '将 splat (.ply, .sog, .spz, .splat, .ksplat) 拖拽到这里',
+        folderList: '场景列表',
+        frameRange: '帧范围',
+        selectFolder: '选择场景...',
+        shortFrames: '短（16 帧）',
+        mediumFrames: '中（32 帧）',
+        longFrames: '长（全部帧）',
+        import: '导入',
+        reset: '重置',
+        play: '播放',
+        pause: '暂停',
+        enterVr: '进入 VR',
+        exitVr: '退出 VR',
+        loadingFolders: '正在加载场景...',
+        folderUnavailable: '场景列表不可用',
+        noFolders: '暂无场景',
+        loadingScenePreviews: '正在加载预览...',
+        scenePreviewsUnavailable: '场景预览不可用',
+        noScenePreviews: '暂无场景预览',
+        noPreview: '暂无预览',
+        cache: '缓存所有',
+        noScenesFound: '未找到场景',
+        cachingProgress: '缓存中 {done}/{total}',
+        cachedProgress: '已缓存 {done}/{total}',
+        noSplatFilesAtUrl: '该地址未找到 .ply / .spz / .splat / .ksplat / .sog 文件',
+        failedToLoadScene: '场景加载失败：{message}',
+        language: '语言',
+        langZh: '中文',
+        langEn: 'English',
+        importedFiles: '本地文件',
+      },
+    };
+
+    const SCENE_NAME_I18N = {
+      '仓大佬跳舞': { zh: '仓大佬跳舞', en: 'Cang Dance' },
+      '动物世界': { zh: '动物世界', en: 'Animal World' },
+      '少年派': { zh: '少年派', en: 'Life of Pi' },
+      '直播美女': { zh: '直播美女', en: 'Live Beauty' },
+    };
+
+    function t(key, vars = {}) {
+      const table = I18N_TEXT[UI_LANG] || I18N_TEXT.en;
+      const fallback = I18N_TEXT.en;
+      const template = table[key] ?? fallback[key] ?? key;
+      return String(template).replace(/\{(\w+)\}/g, (_, token) => {
+        if (Object.prototype.hasOwnProperty.call(vars, token)) {
+          return String(vars[token]);
+        }
+        return `{${token}}`;
+      });
+    }
+
+    function localizeSceneName(rawName) {
+      const key = String(rawName || '').trim();
+      if (!key) return '';
+      const entry = SCENE_NAME_I18N[key];
+      if (!entry) return key;
+      return entry[UI_LANG] || entry.en || key;
+    }
+
+    function applyStaticI18n() {
+      const textEls = document.querySelectorAll('[data-i18n-key]');
+      textEls.forEach((el) => {
+        const key = el.dataset.i18nKey;
+        if (!key) return;
+        el.textContent = t(key);
+      });
+
+      const ariaEls = document.querySelectorAll('[data-i18n-aria-label]');
+      ariaEls.forEach((el) => {
+        const key = el.dataset.i18nAriaLabel;
+        if (!key) return;
+        el.setAttribute('aria-label', t(key));
+      });
+
+      const titleEls = document.querySelectorAll('[data-i18n-title]');
+      titleEls.forEach((el) => {
+        const key = el.dataset.i18nTitle;
+        if (!key) return;
+        el.setAttribute('title', t(key));
+      });
+    }
 
     const sparkCanvasEl = document.querySelector(".spark-canvas");
     const scene = new THREE.Scene();
@@ -977,8 +1389,8 @@
 
     renderer.xr.addEventListener('sessionstart', () => {
       if (vrButton) {
-        vrButton.setAttribute('aria-label', 'Exit VR');
-        vrButton.setAttribute('title', 'Exit VR');
+        vrButton.setAttribute('aria-label', t('exitVr'));
+        vrButton.setAttribute('title', t('exitVr'));
       }
       vrFrameGroup.visible = true;
       vrWindowMask.visible = true;
@@ -995,8 +1407,8 @@
     });
     renderer.xr.addEventListener('sessionend', () => {
       if (vrButton) {
-        vrButton.setAttribute('aria-label', 'Enter VR');
-        vrButton.setAttribute('title', 'Enter VR');
+        vrButton.setAttribute('aria-label', t('enterVr'));
+        vrButton.setAttribute('title', t('enterVr'));
       }
       vrFrameGroup.visible = false;
       vrWindowMask.visible = false;
@@ -1239,11 +1651,28 @@
     const timeTotalEl = document.querySelector('.time-total');
     const speedSelect = document.querySelector('.speed-select');
     const resetBtn = document.querySelector('.reset-button');
-    const importBtn = document.querySelector('.import-button');
+    const viewerCloseBtn = document.querySelector('.viewer-close-button');
+    const sceneTitleOverlayEl = document.querySelector('.scene-title-overlay');
     const frameLimitSelectEl = document.querySelector('.frame-limit-select');
     const fovSlider = document.querySelector('.fov-slider');
     const fovValue = document.querySelector('.fov-value');
     const controlsRightEl = document.querySelector('.controls-right');
+    const languageSelectEl = document.querySelector('.language-select');
+
+    applyStaticI18n();
+
+    if (languageSelectEl) {
+      languageSelectEl.value = UI_LANG;
+      languageSelectEl.addEventListener('change', () => {
+        const nextLang = normalizeLanguageCode(languageSelectEl.value) || 'en';
+        if (nextLang === UI_LANG) return;
+        try {
+          localStorage.setItem(LANG_STORAGE_KEY, nextLang);
+        } catch {
+        }
+        window.location.reload();
+      });
+    }
 
     if (frameLimitSelectEl) {
       frameLimitSelectEl.value = maxFramesMode;
@@ -1255,8 +1684,8 @@
 
     if (vrButton) {
       vrButton.style.zIndex = '3';
-      vrButton.setAttribute('aria-label', 'Enter VR');
-      vrButton.setAttribute('title', 'Enter VR');
+      vrButton.setAttribute('aria-label', t('enterVr'));
+      vrButton.setAttribute('title', t('enterVr'));
       if (controlsRightEl) {
         controlsRightEl.appendChild(vrButton);
       } else {
@@ -1380,6 +1809,38 @@
         progress: 0,
         disabled: false,
       });
+      setViewerSceneTitle('');
+    }
+
+    function setViewerSceneTitle(title) {
+      if (!sceneTitleOverlayEl) return;
+      const safeText = String(title || '').trim();
+      sceneTitleOverlayEl.textContent = safeText;
+      sceneTitleOverlayEl.classList.toggle('has-text', safeText.length > 0);
+    }
+
+    function getDirectoryDisplayName(dirUrl) {
+      const normalized = normalizeDirectoryUrl(dirUrl);
+      const parts = normalized.split('/').filter(Boolean);
+      const rawName = parts[parts.length - 1] || '';
+      return localizeSceneName(rawName) || rawName;
+    }
+
+    function getBaseName(inputPath) {
+      const value = String(inputPath || '').trim();
+      if (!value) return '';
+      const parts = value.split(/[/\\]/).filter(Boolean);
+      return parts[parts.length - 1] || value;
+    }
+
+    async function returnToImportInterface() {
+      if (renderer.xr.isPresenting) {
+        const xrSession = renderer.xr.getSession();
+        if (xrSession) {
+          await xrSession.end();
+        }
+      }
+      showImportInterface();
     }
 
     async function showFrame(index) {
@@ -1461,8 +1922,8 @@
 
     function setPlaying(val) {
       isPlaying = val;
-      playIcon.textContent = isPlaying ? '❚❚' : '▶';
-      playBtn.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+      playBtn.classList.toggle('is-playing', isPlaying);
+      playBtn.setAttribute('aria-label', isPlaying ? t('pause') : t('play'));
       if (isPlaying) {
         if (renderer.xr.isPresenting) {
           resetXrPlaybackClock();
@@ -1639,14 +2100,8 @@
       resetViewState();
     });
 
-    importBtn?.addEventListener('click', async () => {
-      if (renderer.xr.isPresenting) {
-        const xrSession = renderer.xr.getSession();
-        if (xrSession) {
-          await xrSession.end();
-        }
-      }
-      showImportInterface();
+    viewerCloseBtn?.addEventListener('click', async () => {
+      await returnToImportInterface();
     });
 
     updateFov(camera.fov);
@@ -1850,6 +2305,7 @@
         warmup: true,
         ensureFirstBytes: true,
       });
+      setViewerSceneTitle(getBaseName(ordered[0]?.name));
     }
 
     var loadedSplat;
@@ -2065,6 +2521,7 @@
         ensureFirstBytes: true,
         releaseOnlyIfChanged: true,
       });
+      setViewerSceneTitle(getDirectoryDisplayName(normalized));
     }
 
 
@@ -2082,6 +2539,7 @@
           bytesPromise: null,
         },
       ]);
+      setViewerSceneTitle(fileName);
     }
 
     async function loadSplatURLs(urls) {
@@ -2231,12 +2689,13 @@
     }
 
     const urlDirSelectEl = document.querySelector('.url-dir-select');
+    const scenePreviewGridEl = document.querySelector('.scene-preview-grid');
     const cacheAllBtnEl = document.querySelector('.cache-all-button');
     const cacheAllProgressEl = document.querySelector('.cache-all-progress');
     const cacheAllLabelEl = document.querySelector('.cache-all-label');
     let currentDirectory = '/';
     let selectedSceneDirectory = '';
-    let cacheButtonIdleLabel = 'Cache';
+    let cacheButtonIdleLabel = t('cache');
     let cacheLabelAnimTimer = null;
     let cacheLabelAnimFrame = 0;
     let cacheAllLabelTextEl = null;
@@ -2282,7 +2741,7 @@
     }
 
     function setCacheButtonState({
-      label = 'Cache',
+      label = t('cache'),
       progress = 0,
       disabled = false,
       isCaching = false,
@@ -2314,6 +2773,162 @@
       return dir;
     }
 
+    function setScenePreviewStatus(text) {
+      if (!scenePreviewGridEl) return;
+      scenePreviewGridEl.innerHTML = '';
+      const statusEl = document.createElement('div');
+      statusEl.className = 'scene-preview-status';
+      statusEl.textContent = text;
+      scenePreviewGridEl.appendChild(statusEl);
+    }
+
+    function parseUrlPathParts(inputUrl) {
+      if (typeof inputUrl !== 'string') {
+        return { pathOnly: '', suffix: '' };
+      }
+      const hashIndex = inputUrl.indexOf('#');
+      const queryIndex = inputUrl.indexOf('?');
+      let splitIndex = -1;
+      if (queryIndex >= 0 && hashIndex >= 0) splitIndex = Math.min(queryIndex, hashIndex);
+      else if (queryIndex >= 0) splitIndex = queryIndex;
+      else if (hashIndex >= 0) splitIndex = hashIndex;
+      return {
+        pathOnly: splitIndex >= 0 ? inputUrl.slice(0, splitIndex) : inputUrl,
+        suffix: splitIndex >= 0 ? inputUrl.slice(splitIndex) : '',
+      };
+    }
+
+    function replaceUrlFilename(inputUrl, nextFileName) {
+      const { pathOnly, suffix } = parseUrlPathParts(inputUrl);
+      if (!pathOnly) return '';
+      const slashIndex = pathOnly.lastIndexOf('/');
+      if (slashIndex < 0) return inputUrl;
+      return `${pathOnly.slice(0, slashIndex + 1)}${nextFileName}${suffix}`;
+    }
+
+    function getScenePreviewInfo(sceneName, sceneConfig) {
+      const sceneFolderBase = rewriteSceneAssetUrl(`/public/${sceneName}/`);
+      const defaultPreviewUrl = `${sceneFolderBase}0000.png`;
+      const fallbackSet = new Set();
+      fallbackSet.add(`./public/${sceneName}/0000.png`);
+      fallbackSet.add(`/public/${sceneName}/0000.png`);
+      fallbackSet.add(`/projects/4dgs/public/${sceneName}/0000.png`);
+
+      const sceneUrls = extractSceneUrls(sceneConfig);
+      let primaryPreviewUrl = defaultPreviewUrl;
+      if (sceneUrls.length > 0) {
+        const inferredPreview = replaceUrlFilename(sceneUrls[0], '0000.png');
+        if (inferredPreview) {
+          primaryPreviewUrl = inferredPreview;
+          const inferredFallbacks = getFallbackAssetUrls(inferredPreview);
+          for (const candidate of inferredFallbacks) {
+            fallbackSet.add(candidate);
+          }
+        }
+      }
+
+      fallbackSet.delete(primaryPreviewUrl);
+      return {
+        primary: primaryPreviewUrl,
+        fallbacks: Array.from(fallbackSet),
+      };
+    }
+
+    function syncScenePreviewSelection() {
+      if (!scenePreviewGridEl) return;
+      const activeDir = normalizeDirectoryUrl(selectedSceneDirectory);
+      const cards = scenePreviewGridEl.querySelectorAll('.scene-card');
+      cards.forEach(card => {
+        const cardDir = normalizeDirectoryUrl(card.dataset.dir || '');
+        card.classList.toggle('is-selected', Boolean(activeDir && activeDir !== '/' && cardDir === activeDir));
+      });
+    }
+
+    async function handleSceneSelection(dirUrl) {
+      const normalized = normalizeDirectoryUrl(dirUrl);
+      if (!normalized || normalized === '/') return;
+      selectedSceneDirectory = normalized;
+      setViewerSceneTitle(getDirectoryDisplayName(normalized));
+      if (urlDirSelectEl) {
+        urlDirSelectEl.value = normalized;
+      }
+      syncScenePreviewSelection();
+      await loadFromUrlText(normalized);
+      await refreshDirectoryDropdown(currentDirectory);
+    }
+
+    async function setScenePreviewCards(baseDir, directories) {
+      if (!scenePreviewGridEl) return;
+      if (!Array.isArray(directories) || directories.length === 0) {
+        setScenePreviewStatus(t('noScenePreviews'));
+        return;
+      }
+
+      const normalizedBase = normalizeDirectoryUrl(baseDir);
+      const catalog = await loadSceneCatalog();
+      scenePreviewGridEl.innerHTML = '';
+
+      for (const name of directories) {
+        const fullDir = normalizeDirectoryUrl(`${normalizedBase}${name}/`);
+        const configKey = normalizeCatalogKey(fullDir);
+        const sceneConfig = catalog[configKey];
+        const previewInfo = getScenePreviewInfo(name, sceneConfig);
+        const displayName = localizeSceneName(name);
+
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'scene-card';
+        card.dataset.dir = fullDir;
+        card.title = fullDir;
+
+        const thumb = document.createElement('div');
+        thumb.className = 'scene-card-thumb';
+
+        const image = document.createElement('img');
+        image.alt = `${displayName} preview`;
+        image.loading = 'lazy';
+        image.decoding = 'async';
+        const fallbackQueue = [...previewInfo.fallbacks];
+        image.onerror = () => {
+          const nextUrl = fallbackQueue.shift();
+          if (nextUrl) {
+            image.src = nextUrl;
+            return;
+          }
+          image.remove();
+          if (!thumb.querySelector('.scene-card-thumb-fallback')) {
+            const fallbackText = document.createElement('span');
+            fallbackText.className = 'scene-card-thumb-fallback';
+            fallbackText.textContent = t('noPreview');
+            thumb.appendChild(fallbackText);
+          }
+        };
+        image.src = previewInfo.primary;
+        thumb.appendChild(image);
+
+        const title = document.createElement('span');
+        title.className = 'scene-card-title';
+        title.textContent = displayName;
+
+        card.appendChild(thumb);
+        card.appendChild(title);
+        card.addEventListener('click', async () => {
+          if (card.classList.contains('is-loading')) return;
+          const allCards = scenePreviewGridEl.querySelectorAll('.scene-card');
+          allCards.forEach(el => el.classList.add('is-loading'));
+          try {
+            await handleSceneSelection(fullDir);
+          } finally {
+            allCards.forEach(el => el.classList.remove('is-loading'));
+          }
+        });
+
+        scenePreviewGridEl.appendChild(card);
+      }
+
+      syncScenePreviewSelection();
+    }
+
     async function discoverSubdirectories(dirUrl) {
       const normalized = normalizeDirectoryUrl(dirUrl);
       if (normalized !== '/') return [];
@@ -2329,13 +2944,13 @@
 
       const placeholder = document.createElement('option');
       placeholder.value = '';
-      placeholder.textContent = 'Select folder...';
+      placeholder.textContent = t('selectFolder');
       urlDirSelectEl.appendChild(placeholder);
 
       if (directories.length === 0) {
         const empty = document.createElement('option');
         empty.value = '';
-        empty.textContent = 'No folders';
+        empty.textContent = t('noFolders');
         empty.disabled = true;
         urlDirSelectEl.appendChild(empty);
       } else {
@@ -2343,7 +2958,7 @@
           const fullDir = `${normalizedBase}${name}/`;
           const option = document.createElement('option');
           option.value = fullDir;
-          option.textContent = name;
+          option.textContent = localizeSceneName(name);
           option.title = fullDir;
           urlDirSelectEl.appendChild(option);
         }
@@ -2361,18 +2976,26 @@
     }
 
     async function refreshDirectoryDropdown(baseDir = currentDirectory) {
-      if (!urlDirSelectEl) return;
       currentDirectory = normalizeDirectoryUrl(baseDir);
       try {
-        urlDirSelectEl.disabled = true;
-        urlDirSelectEl.innerHTML = '<option value="">Loading folders...</option>';
+        if (urlDirSelectEl) {
+          urlDirSelectEl.disabled = true;
+          urlDirSelectEl.innerHTML = `<option value="">${t('loadingFolders')}</option>`;
+        }
+        setScenePreviewStatus(t('loadingScenePreviews'));
         const dirs = await discoverSubdirectories(currentDirectory);
         setDirectoryOptions(currentDirectory, dirs);
+        await setScenePreviewCards(currentDirectory, dirs);
       } catch (e) {
         console.error('Directory discovery failed:', e);
-        urlDirSelectEl.innerHTML = '<option value="">Folder list unavailable</option>';
+        if (urlDirSelectEl) {
+          urlDirSelectEl.innerHTML = `<option value="">${t('folderUnavailable')}</option>`;
+        }
+        setScenePreviewStatus(t('scenePreviewsUnavailable'));
       } finally {
-        urlDirSelectEl.disabled = false;
+        if (urlDirSelectEl) {
+          urlDirSelectEl.disabled = false;
+        }
       }
     }
 
@@ -2397,7 +3020,7 @@
           if (!sceneCache.has(cacheKey)) {
             const urls = await discoverSplatFiles(normalized);
             if (urls.length === 0) {
-              alert('No .ply / .spz / .splat / .ksplat / .sog files found at that URL');
+              alert(t('noSplatFilesAtUrl'));
               return false;
             }
             sceneCache.set(cacheKey, {
@@ -2408,7 +3031,7 @@
           await loadSceneByDirectory(normalized);
         } catch (e) {
           console.error('Scene load failed:', e);
-          alert('Failed to load scene: ' + (e?.message || e));
+          alert(t('failedToLoadScene', { message: e?.message || e }));
           return false;
         }
         return true;
@@ -2463,9 +3086,9 @@
       const dirs = await discoverSubdirectories(currentDirectory);
       const targets = dirs.map(name => `${normalizeDirectoryUrl(currentDirectory)}${name}/`);
       if (targets.length === 0) {
-        cacheButtonIdleLabel = 'Cache';
+        cacheButtonIdleLabel = t('cache');
         setCacheButtonState({
-          label: 'No scenes found',
+          label: t('noScenesFound'),
           progress: 0,
           disabled: false,
           isCaching: false,
@@ -2474,7 +3097,7 @@
       }
 
       setCacheButtonState({
-        label: `Caching 0/${targets.length}`,
+        label: t('cachingProgress', { done: 0, total: targets.length }),
         progress: 0,
         disabled: true,
         isCaching: true,
@@ -2499,7 +3122,7 @@
         (completed) => {
           done = completed;
           setCacheButtonState({
-            label: `Caching ${done}/${targets.length}`,
+            label: t('cachingProgress', { done, total: targets.length }),
             progress: (done / targets.length) * 100,
             disabled: true,
             isCaching: true,
@@ -2507,7 +3130,7 @@
         },
       );
 
-      cacheButtonIdleLabel = `Cached ${done}/${targets.length}`;
+      cacheButtonIdleLabel = t('cachedProgress', { done, total: targets.length });
       setCacheButtonState({
         label: cacheButtonIdleLabel,
         progress: 100,
@@ -2519,9 +3142,7 @@
     urlDirSelectEl?.addEventListener('change', async () => {
       const selected = urlDirSelectEl.value;
       if (!selected) return;
-      selectedSceneDirectory = normalizeDirectoryUrl(selected);
-      await loadFromUrlText(selected);
-      await refreshDirectoryDropdown(currentDirectory);
+      await handleSceneSelection(selected);
     });
 
     cacheAllBtnEl?.addEventListener('click', async () => {
@@ -2542,13 +3163,15 @@
       <div class="viewer-stack">
         <div class="window-frame">
           <div class="logo">
-            <a href="./"><img src="./pico-logo.png" alt="Spark Logo" /></a>
+            <img src="./pico-logo.png" alt="Spark Logo" />
           </div>
+          <div class="scene-title-overlay" aria-live="polite"></div>
+          <button class="viewer-close-button" type="button" aria-label="Close">✕</button>
           <canvas class="spark-canvas"></canvas>
         </div>
         <div class="controls">
           <div class="controls-left">
-            <button class="play-button play-toggle" aria-label="Play">
+            <button class="play-button play-toggle" data-i18n-aria-label="play" aria-label="Play">
               <span class="play-icon" aria-hidden="true">▶</span>
               <span class="loading-spinner" aria-hidden="true"></span>
             </button>
@@ -2574,8 +3197,7 @@
               <input class="fov-slider" type="range" min="10" max="90" step="1" value="35" />
               <span class="fov-value">35°</span>
             </div>
-            <button class="import-button">Import</button>
-            <button class="reset-button">Reset</button>
+            <button class="reset-button" data-i18n-key="reset">Reset</button>
           </div>
         </div>
       </div>
@@ -2583,29 +3205,36 @@
   </div>
   <div class="container">
     <div class="drop-container">
-      <h1 class="hero-title">Pico 6DoF Video Player</h1>
+      <h1 class="hero-title" data-i18n-key="heroTitle">Pico 6DoF Player</h1>
       <div class="hero-logo">
         <a href="./"><img src="./pico-viewer.png" alt="Pico Viewer Logo" /></a>
       </div>
-      <div class="drop-zone">Drag and drop splat files here</div>
+      <div class="language-row">
+        <div class="language-group">
+          <span class="language-label" data-i18n-key="language">Language</span>
+          <select class="url-select language-select" aria-label="Language">
+            <option value="zh" data-i18n-key="langZh">中文</option>
+            <option value="en" data-i18n-key="langEn">English</option>
+          </select>
+        </div>
+      </div>
+      <div class="drop-zone" data-i18n-key="dragDrop">Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat) here</div>
       <input id="file-input" class="hidden" accept=".ply,.spz,.splat,.ksplat,.sog" type="file" multiple />
       <form class="url-form">
+        <div class="scene-preview-grid" aria-live="polite"></div>
         <div class="url-row">
-          <select class="url-select url-dir-select" aria-label="Folder list">
-            <option value="">Select folder...</option>
-          </select>
-          <div class="frame-limit-wrap" title="Frame range">
-            <select class="frame-limit-select" aria-label="Frame range">
-              <option value="short" selected>Short (16 Frames)</option>
-              <option value="medium">Medium (32 Frames)</option>
-              <option value="long">Long (All Frames)</option>
+          <div class="frame-limit-wrap" data-i18n-title="frameRange" title="Frame range">
+            <select class="frame-limit-select" data-i18n-aria-label="frameRange" aria-label="Frame range">
+              <option value="short" data-i18n-key="shortFrames" selected>Short (16 Frames)</option>
+              <option value="medium" data-i18n-key="mediumFrames">Medium (32 Frames)</option>
+              <option value="long" data-i18n-key="longFrames">Long (All Frames)</option>
             </select>
           </div>
+          <button type="button" class="cache-all-button">
+            <span class="cache-all-progress" aria-hidden="true"></span>
+            <span class="cache-all-label" data-i18n-key="cache">Cache</span>
+          </button>
         </div>
-        <button type="button" class="cache-all-button">
-          <span class="cache-all-progress" aria-hidden="true"></span>
-          <span class="cache-all-label">Cache all scenes</span>
-        </button>
       </form>
     </div>
   </div>
