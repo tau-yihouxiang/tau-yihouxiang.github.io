@@ -1668,9 +1668,17 @@
     let playbackTimer = null;
     let isCaching = false;
     let isSceneSwitching = false;
+    let isPageUnloading = false;
     let cachingTaskId = 0;
     let cachingProgress = 0;
     let viewerPreviewFallbackQueue = [];
+
+    window.addEventListener('beforeunload', () => {
+      isPageUnloading = true;
+    });
+    window.addEventListener('pagehide', () => {
+      isPageUnloading = true;
+    });
 
     const playBtn = document.querySelector('.play-button');
     const playIcon = document.querySelector('.play-icon');
@@ -3217,6 +3225,9 @@
             selectionRequestId,
           });
         } catch (e) {
+          if (isPageUnloading) {
+            return false;
+          }
           console.error('Scene load failed:', e);
           alert(t('failedToLoadScene', { message: e?.message || e }));
           showImportInterface();
