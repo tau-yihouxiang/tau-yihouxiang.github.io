@@ -1152,10 +1152,15 @@
       }
       if (IS_IOS_DEVICE) {
         return {
-          preloadAheadFrames: IOS_PRELOAD_AHEAD_FRAMES,
-          maxResidentMeshes: IOS_MAX_RESIDENT_MESHES,
-          releaseBytesAfterMesh: true,
-          warmupFrameCount: IOS_PRELOAD_AHEAD_FRAMES + 1,
+          preloadAheadFrames: DESKTOP_PRELOAD_AHEAD_FRAMES,
+          maxResidentMeshes: (
+            maxFramesMode === FRAME_LIMIT_MODE_LONG
+            || maxFramesMode === FRAME_LIMIT_MODE_MEDIUM
+          )
+            ? Number.POSITIVE_INFINITY
+            : DESKTOP_MAX_RESIDENT_MESHES,
+          releaseBytesAfterMesh: false,
+          warmupFrameCount: Number.POSITIVE_INFINITY,
         };
       }
       return {
