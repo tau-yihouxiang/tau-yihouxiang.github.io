@@ -1890,12 +1890,43 @@
       }
       if (frame.bytesPromise) return frame.bytesPromise;
       frame.bytesPromise = (async () => {
+        const tryFetchFrameBytes = async (url) => {
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}`);
+          }
+          frame.bytes = new Uint8Array(await resp.arrayBuffer());
+          frame.url = url;
+          return frame.bytes;
+        };
+
         try {
           if (frame.file) {
             frame.bytes = new Uint8Array(await frame.file.arrayBuffer());
           } else if (frame.url && !frame.bytes) {
-            const resp = await fetch(frame.url);
-            frame.bytes = new Uint8Array(await resp.arrayBuffer());
+            try {
+              await tryFetchFrameBytes(frame.url);
+            } catch (primaryError) {
+              if (STRICT_ASSET_BASE) {
+                throw primaryError;
+              }
+              const fallbackUrls = getFallbackAssetUrls(frame.url);
+              let loaded = false;
+              for (const fallbackUrl of fallbackUrls) {
+                if (fallbackUrl === frame.url) continue;
+                try {
+                  await tryFetchFrameBytes(fallbackUrl);
+                  loaded = true;
+                  console.warn('Primary asset URL failed, switched to fallback URL:', fallbackUrl);
+                  break;
+                } catch {
+                  // Try next fallback candidate.
+                }
+              }
+              if (!loaded) {
+                throw primaryError;
+              }
+            }
           }
           return frame.bytes;
         } catch (e) {
@@ -2075,10 +2106,63 @@
 
     const SPLAT_EXTS = ['.ply', '.spz', '.splat', '.ksplat', '.sog'];
     const SCENES_API_URL = './api/scenes';
+    const DEFAULT_ASSET_BASE_URL = 'https://pub-a41aca825b7f4ae9bfb99696fc629160.r2.dev';
     let sceneCatalogPromise = null;
 
     function normalizeCatalogKey(input) {
       return normalizeDirectoryUrl(input).replace(/^\/+|\/+$/g, '');
+    }
+
+    function normalizeAssetBaseUrl(input) {
+      const raw = String(input ?? '').trim();
+      if (!raw) return '';
+      if (raw.toLowerCase() === 'local') return '';
+      return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+    }
+
+    const assetBaseParam = params.get('assetBase');
+    const ASSET_BASE_URL = normalizeAssetBaseUrl(assetBaseParam || DEFAULT_ASSET_BASE_URL);
+    const STRICT_ASSET_BASE = params.get('strictAssetBase') === '1';
+
+    function getFallbackAssetUrls(inputUrl) {
+      if (typeof inputUrl !== 'string' || !ASSET_BASE_URL) return [];
+      const normalizedBase = `${ASSET_BASE_URL}/`;
+      if (!inputUrl.startsWith(normalizedBase)) return [];
+      const relativePath = inputUrl.slice(normalizedBase.length);
+      if (!relativePath) return [];
+      return [
+        `./public/${relativePath}`,
+        `/public/${relativePath}`,
+        `/projects/4dgs/public/${relativePath}`,
+      ];
+    }
+
+    function rewriteSceneAssetUrl(inputUrl) {
+      if (typeof inputUrl !== 'string' || !ASSET_BASE_URL) return inputUrl;
+      if (/^https?:\/\//i.test(inputUrl)) return inputUrl;
+
+      const hashIndex = inputUrl.indexOf('#');
+      const queryIndex = inputUrl.indexOf('?');
+      let splitIndex = -1;
+      if (queryIndex >= 0 && hashIndex >= 0) splitIndex = Math.min(queryIndex, hashIndex);
+      else if (queryIndex >= 0) splitIndex = queryIndex;
+      else if (hashIndex >= 0) splitIndex = hashIndex;
+
+      const pathOnly = splitIndex >= 0 ? inputUrl.slice(0, splitIndex) : inputUrl;
+      const suffix = splitIndex >= 0 ? inputUrl.slice(splitIndex) : '';
+
+      let relativePath = '';
+      if (pathOnly.startsWith('./public/')) {
+        relativePath = pathOnly.slice('./public/'.length);
+      } else if (pathOnly.startsWith('/public/')) {
+        relativePath = pathOnly.slice('/public/'.length);
+      } else if (pathOnly.startsWith('/projects/4dgs/public/')) {
+        relativePath = pathOnly.slice('/projects/4dgs/public/'.length);
+      } else {
+        return inputUrl;
+      }
+
+      return `${ASSET_BASE_URL}/${relativePath}${suffix}`;
     }
 
     async function loadSceneCatalog() {
@@ -2104,27 +2188,30 @@
 
     function extractSceneUrls(sceneConfig) {
       if (typeof sceneConfig === 'string') {
-        return [sceneConfig];
+        return [rewriteSceneAssetUrl(sceneConfig)];
       }
 
-      if (Array.isArray(sceneConfig)) return sceneConfig.slice();
+      if (Array.isArray(sceneConfig)) {
+        return sceneConfig.map(url => rewriteSceneAssetUrl(url));
+      }
       if (!sceneConfig || typeof sceneConfig !== 'object') return [];
 
       if (Array.isArray(sceneConfig.urls)) {
-        return sceneConfig.urls.slice();
+        return sceneConfig.urls.map(url => rewriteSceneAssetUrl(url));
       }
 
       if (typeof sceneConfig.urls === 'string') {
-        return [sceneConfig.urls];
+        return [rewriteSceneAssetUrl(sceneConfig.urls)];
       }
 
       if (typeof sceneConfig.pattern === 'string') {
-        return expandUrlPattern(sceneConfig.pattern) || [];
+        const urls = expandUrlPattern(sceneConfig.pattern) || [];
+        return urls.map(url => rewriteSceneAssetUrl(url));
       }
 
       if (typeof sceneConfig.baseUrl === 'string' && Array.isArray(sceneConfig.files)) {
         const baseUrl = sceneConfig.baseUrl.endsWith('/') ? sceneConfig.baseUrl : `${sceneConfig.baseUrl}/`;
-        return sceneConfig.files.map(name => `${baseUrl}${name}`);
+        return sceneConfig.files.map(name => rewriteSceneAssetUrl(`${baseUrl}${name}`));
       }
 
       return [];
