@@ -1824,6 +1824,8 @@
       document.querySelector('.canvas-container').classList.add('invisible');
       document.querySelector('.container').classList.remove('hidden');
       hideViewerPreviewOverlay();
+      sceneSelectionRequestId += 1;
+      clearSceneCardLoadingState();
       if (urlDirSelectEl) {
         urlDirSelectEl.value = '';
       }
@@ -2579,12 +2581,15 @@
 
     async function loadSceneByDirectory(dirUrl, {
       viewerPreviewCandidates = [],
+      selectionRequestId = null,
     } = {}) {
       const normalized = normalizeDirectoryUrl(dirUrl);
+      if (selectionRequestId != null && selectionRequestId !== sceneSelectionRequestId) return;
       const cacheKey = getSceneCacheKey(normalized);
       let sceneEntry = sceneCache.get(cacheKey);
       if (!sceneEntry) {
         const urls = await discoverSplatFiles(normalized);
+        if (selectionRequestId != null && selectionRequestId !== sceneSelectionRequestId) return;
         sceneEntry = {
           dir: normalized,
           frames: createSceneFramesFromUrls(urls),
@@ -2599,6 +2604,7 @@
         showViewerEarly: true,
         viewerPreviewCandidates,
       });
+      if (selectionRequestId != null && selectionRequestId !== sceneSelectionRequestId) return;
       setViewerSceneTitle(getDirectoryDisplayName(normalized));
     }
 
@@ -2774,6 +2780,7 @@
     let currentDirectory = '/';
     let selectedSceneDirectory = '';
     const scenePreviewByDirectory = new Map();
+    let sceneSelectionRequestId = 0;
     let cacheButtonIdleLabel = t('cache');
     let cacheLabelAnimTimer = null;
     let cacheLabelAnimFrame = 0;
@@ -2923,6 +2930,12 @@
       });
     }
 
+    function clearSceneCardLoadingState() {
+      if (!scenePreviewGridEl) return;
+      const cards = scenePreviewGridEl.querySelectorAll('.scene-card.is-loading');
+      cards.forEach(card => card.classList.remove('is-loading'));
+    }
+
     function getScenePreviewCandidatesForDirectory(dirUrl) {
       const normalized = normalizeDirectoryUrl(dirUrl);
       const previewInfo = scenePreviewByDirectory.get(normalized);
@@ -2932,9 +2945,10 @@
         .filter(Boolean);
     }
 
-    async function handleSceneSelection(dirUrl, previewCandidates = null) {
+    async function handleSceneSelection(dirUrl, previewCandidates = null, requestId = null) {
       const normalized = normalizeDirectoryUrl(dirUrl);
       if (!normalized || normalized === '/') return;
+      const activeRequestId = requestId ?? (++sceneSelectionRequestId);
       selectedSceneDirectory = normalized;
       setViewerSceneTitle(getDirectoryDisplayName(normalized));
       if (urlDirSelectEl) {
@@ -2944,7 +2958,11 @@
       const candidates = Array.isArray(previewCandidates) && previewCandidates.length > 0
         ? previewCandidates
         : getScenePreviewCandidatesForDirectory(normalized);
-      await loadFromUrlText(normalized, { viewerPreviewCandidates: candidates });
+      await loadFromUrlText(normalized, {
+        viewerPreviewCandidates: candidates,
+        selectionRequestId: activeRequestId,
+      });
+      if (activeRequestId !== sceneSelectionRequestId) return;
       await refreshDirectoryDropdown(currentDirectory);
     }
 
@@ -3007,12 +3025,14 @@
         card.appendChild(title);
         card.addEventListener('click', async () => {
           if (card.classList.contains('is-loading')) return;
-          const allCards = scenePreviewGridEl.querySelectorAll('.scene-card');
-          allCards.forEach(el => el.classList.add('is-loading'));
+          const requestId = ++sceneSelectionRequestId;
+          card.classList.add('is-loading');
           try {
-            await handleSceneSelection(fullDir, [previewInfo.primary, ...previewInfo.fallbacks]);
+            await handleSceneSelection(fullDir, [previewInfo.primary, ...previewInfo.fallbacks], requestId);
           } finally {
-            allCards.forEach(el => el.classList.remove('is-loading'));
+            if (requestId === sceneSelectionRequestId) {
+              card.classList.remove('is-loading');
+            }
           }
         });
 
@@ -3094,6 +3114,7 @@
 
     async function loadFromUrlText(raw, {
       viewerPreviewCandidates = [],
+      selectionRequestId = null,
     } = {}) {
       if (!raw) return;
 
@@ -3125,6 +3146,7 @@
           }
           await loadSceneByDirectory(normalized, {
             viewerPreviewCandidates,
+            selectionRequestId,
           });
         } catch (e) {
           console.error('Scene load failed:', e);
