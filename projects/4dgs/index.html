@@ -730,6 +730,26 @@
       pointer-events: auto;
     }
 
+    .viewer-preview-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      display: none;
+      pointer-events: none;
+      background: rgb(17, 17, 17);
+    }
+
+    .viewer-preview-overlay.is-visible {
+      display: block;
+    }
+
+    .viewer-preview-overlay img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
     .controls-right #VRButton {
       position: static !important;
       left: auto !important;
@@ -1641,6 +1661,7 @@
     let isCaching = false;
     let cachingTaskId = 0;
     let cachingProgress = 0;
+    let viewerPreviewFallbackQueue = [];
 
     const playBtn = document.querySelector('.play-button');
     const playIcon = document.querySelector('.play-icon');
@@ -1653,6 +1674,8 @@
     const resetBtn = document.querySelector('.reset-button');
     const viewerCloseBtn = document.querySelector('.viewer-close-button');
     const sceneTitleOverlayEl = document.querySelector('.scene-title-overlay');
+    const viewerPreviewOverlayEl = document.querySelector('.viewer-preview-overlay');
+    const viewerPreviewImgEl = viewerPreviewOverlayEl?.querySelector('img') || null;
     const frameLimitSelectEl = document.querySelector('.frame-limit-select');
     const fovSlider = document.querySelector('.fov-slider');
     const fovValue = document.querySelector('.fov-value');
@@ -1800,6 +1823,7 @@
       setPlaying(false);
       document.querySelector('.canvas-container').classList.add('invisible');
       document.querySelector('.container').classList.remove('hidden');
+      hideViewerPreviewOverlay();
       if (urlDirSelectEl) {
         urlDirSelectEl.value = '';
       }
@@ -1817,6 +1841,41 @@
       const safeText = String(title || '').trim();
       sceneTitleOverlayEl.textContent = safeText;
       sceneTitleOverlayEl.classList.toggle('has-text', safeText.length > 0);
+    }
+
+    function hideViewerPreviewOverlay() {
+      viewerPreviewFallbackQueue = [];
+      if (!viewerPreviewOverlayEl) return;
+      viewerPreviewOverlayEl.classList.remove('is-visible');
+      if (viewerPreviewImgEl) {
+        viewerPreviewImgEl.removeAttribute('src');
+      }
+    }
+
+    function showViewerPreviewOverlay(previewUrls = []) {
+      if (!viewerPreviewOverlayEl || !viewerPreviewImgEl) return;
+      const candidates = Array.isArray(previewUrls)
+        ? previewUrls.map(url => String(url || '').trim()).filter(Boolean)
+        : [];
+      if (candidates.length === 0) {
+        hideViewerPreviewOverlay();
+        return;
+      }
+      const [primary, ...fallbacks] = candidates;
+      viewerPreviewFallbackQueue = fallbacks;
+      viewerPreviewImgEl.src = primary;
+      viewerPreviewOverlayEl.classList.add('is-visible');
+    }
+
+    if (viewerPreviewImgEl) {
+      viewerPreviewImgEl.addEventListener('error', () => {
+        const nextUrl = viewerPreviewFallbackQueue.shift();
+        if (nextUrl) {
+          viewerPreviewImgEl.src = nextUrl;
+          return;
+        }
+        hideViewerPreviewOverlay();
+      });
     }
 
     function getDirectoryDisplayName(dirUrl) {
@@ -1859,6 +1918,7 @@
         }
         mesh.visible = true;
         loadedSplat = mesh;
+        hideViewerPreviewOverlay();
 
         if (!hasInitialOrbit) {
           syncOrbitFromCamera();
@@ -2264,6 +2324,8 @@
       warmup = false,
       ensureFirstBytes = false,
       releaseOnlyIfChanged = false,
+      showViewerEarly = false,
+      viewerPreviewCandidates = [],
     } = {}) {
       cancelCachingTask();
       const previousFrames = frames;
@@ -2275,15 +2337,27 @@
         releaseFrameListResources(previousFrames);
       }
       if (frames.length === 0) return;
+      if (showViewerEarly) {
+        showViewerInterface();
+        showViewerPreviewOverlay(viewerPreviewCandidates);
+      } else {
+        hideViewerPreviewOverlay();
+      }
       if (ensureFirstBytes) {
-        await ensureFrameBytes(0, frames);
+        if (showViewerEarly) {
+          ensureFrameBytes(0, frames).catch(() => {});
+        } else {
+          await ensureFrameBytes(0, frames);
+        }
       }
       if (renderer.xr.isPresenting) {
         pendingVrRefit = true;
       }
       await showFrame(0);
       resetViewState();
-      showViewerInterface();
+      if (!showViewerEarly) {
+        showViewerInterface();
+      }
       if (warmup) {
         await startPlaybackAfterWarmup(frames);
       }
@@ -2503,7 +2577,9 @@
     if (splatURL) { loadSplatURL(splatURL); }
 
 
-    async function loadSceneByDirectory(dirUrl) {
+    async function loadSceneByDirectory(dirUrl, {
+      viewerPreviewCandidates = [],
+    } = {}) {
       const normalized = normalizeDirectoryUrl(dirUrl);
       const cacheKey = getSceneCacheKey(normalized);
       let sceneEntry = sceneCache.get(cacheKey);
@@ -2520,6 +2596,8 @@
         warmup: true,
         ensureFirstBytes: true,
         releaseOnlyIfChanged: true,
+        showViewerEarly: true,
+        viewerPreviewCandidates,
       });
       setViewerSceneTitle(getDirectoryDisplayName(normalized));
     }
@@ -2695,6 +2773,7 @@
     const cacheAllLabelEl = document.querySelector('.cache-all-label');
     let currentDirectory = '/';
     let selectedSceneDirectory = '';
+    const scenePreviewByDirectory = new Map();
     let cacheButtonIdleLabel = t('cache');
     let cacheLabelAnimTimer = null;
     let cacheLabelAnimFrame = 0;
@@ -2844,7 +2923,16 @@
       });
     }
 
-    async function handleSceneSelection(dirUrl) {
+    function getScenePreviewCandidatesForDirectory(dirUrl) {
+      const normalized = normalizeDirectoryUrl(dirUrl);
+      const previewInfo = scenePreviewByDirectory.get(normalized);
+      if (!previewInfo) return [];
+      return [previewInfo.primary, ...(Array.isArray(previewInfo.fallbacks) ? previewInfo.fallbacks : [])]
+        .map(url => String(url || '').trim())
+        .filter(Boolean);
+    }
+
+    async function handleSceneSelection(dirUrl, previewCandidates = null) {
       const normalized = normalizeDirectoryUrl(dirUrl);
       if (!normalized || normalized === '/') return;
       selectedSceneDirectory = normalized;
@@ -2853,7 +2941,10 @@
         urlDirSelectEl.value = normalized;
       }
       syncScenePreviewSelection();
-      await loadFromUrlText(normalized);
+      const candidates = Array.isArray(previewCandidates) && previewCandidates.length > 0
+        ? previewCandidates
+        : getScenePreviewCandidatesForDirectory(normalized);
+      await loadFromUrlText(normalized, { viewerPreviewCandidates: candidates });
       await refreshDirectoryDropdown(currentDirectory);
     }
 
@@ -2867,12 +2958,14 @@
       const normalizedBase = normalizeDirectoryUrl(baseDir);
       const catalog = await loadSceneCatalog();
       scenePreviewGridEl.innerHTML = '';
+      scenePreviewByDirectory.clear();
 
       for (const name of directories) {
         const fullDir = normalizeDirectoryUrl(`${normalizedBase}${name}/`);
         const configKey = normalizeCatalogKey(fullDir);
         const sceneConfig = catalog[configKey];
         const previewInfo = getScenePreviewInfo(name, sceneConfig);
+        scenePreviewByDirectory.set(fullDir, previewInfo);
         const displayName = localizeSceneName(name);
 
         const card = document.createElement('button');
@@ -2917,7 +3010,7 @@
           const allCards = scenePreviewGridEl.querySelectorAll('.scene-card');
           allCards.forEach(el => el.classList.add('is-loading'));
           try {
-            await handleSceneSelection(fullDir);
+            await handleSceneSelection(fullDir, [previewInfo.primary, ...previewInfo.fallbacks]);
           } finally {
             allCards.forEach(el => el.classList.remove('is-loading'));
           }
@@ -2999,7 +3092,9 @@
       }
     }
 
-    async function loadFromUrlText(raw) {
+    async function loadFromUrlText(raw, {
+      viewerPreviewCandidates = [],
+    } = {}) {
       if (!raw) return;
 
       // 1) Try pattern expansion: /data/f_{001..050}.spz
@@ -3028,10 +3123,13 @@
               frames: createSceneFramesFromUrls(urls),
             });
           }
-          await loadSceneByDirectory(normalized);
+          await loadSceneByDirectory(normalized, {
+            viewerPreviewCandidates,
+          });
         } catch (e) {
           console.error('Scene load failed:', e);
           alert(t('failedToLoadScene', { message: e?.message || e }));
+          showImportInterface();
           return false;
         }
         return true;
@@ -3167,6 +3265,9 @@
           </div>
           <div class="scene-title-overlay" aria-live="polite"></div>
           <button class="viewer-close-button" type="button" aria-label="Close">✕</button>
+          <div class="viewer-preview-overlay" aria-hidden="true">
+            <img alt="Scene preview" />
+          </div>
           <canvas class="spark-canvas"></canvas>
         </div>
         <div class="controls">
