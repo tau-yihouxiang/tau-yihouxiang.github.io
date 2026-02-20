@@ -1659,6 +1659,7 @@
     let isLoadingFrame = false;
     let playbackTimer = null;
     let isCaching = false;
+    let isSceneSwitching = false;
     let cachingTaskId = 0;
     let cachingProgress = 0;
     let viewerPreviewFallbackQueue = [];
@@ -1999,10 +2000,20 @@
       }
     }
 
+    function updatePlayButtonLoadingState() {
+      const isBusy = isCaching || isSceneSwitching;
+      playBtn.classList.toggle('is-loading', isBusy);
+      playBtn.disabled = isBusy;
+    }
+
+    function setSceneSwitching(val) {
+      isSceneSwitching = Boolean(val);
+      updatePlayButtonLoadingState();
+    }
+
     function setCaching(val) {
       isCaching = val;
-      playBtn.classList.toggle('is-loading', isCaching);
-      playBtn.disabled = isCaching;
+      updatePlayButtonLoadingState();
       if (!isCaching) {
         cachingProgress = 0;
       }
@@ -2020,6 +2031,16 @@
       if (cachingPercentEl) {
         cachingPercentEl.textContent = `${Math.round(cachingProgress)}%`;
       }
+    }
+
+    async function togglePlaybackFromUi() {
+      if (isCaching || isSceneSwitching) return;
+      if (isPlaying) {
+        setPlaying(false);
+        return;
+      }
+      if (!frames.length) return;
+      await startPlaybackAfterWarmup(frames);
     }
 
     function hasMissingFrameMeshes(frameList = frames) {
@@ -2129,14 +2150,46 @@
     }
 
     playBtn.addEventListener('click', async () => {
-      if (isCaching) return;
-      if (isPlaying) {
-        setPlaying(false);
+      await togglePlaybackFromUi();
+    });
+
+    const CANVAS_CLICK_MOVE_THRESHOLD_PX = 8;
+    let canvasPointerDownPos = null;
+
+    sparkCanvasEl.addEventListener('pointerdown', (event) => {
+      if (!event.isPrimary || event.button !== 0) {
+        canvasPointerDownPos = null;
         return;
       }
-      if (!frames.length) return;
-      await startPlaybackAfterWarmup(frames);
+      canvasPointerDownPos = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+      };
     });
+
+    sparkCanvasEl.addEventListener('pointercancel', () => {
+      canvasPointerDownPos = null;
+    });
+
+    sparkCanvasEl.addEventListener('pointerup', (event) => {
+      if (!canvasPointerDownPos) return;
+      if (canvasPointerDownPos.pointerId !== event.pointerId) {
+        canvasPointerDownPos = null;
+        return;
+      }
+      const deltaX = event.clientX - canvasPointerDownPos.x;
+      const deltaY = event.clientY - canvasPointerDownPos.y;
+      const movedDistance = Math.hypot(deltaX, deltaY);
+      canvasPointerDownPos = null;
+      if (movedDistance > CANVAS_CLICK_MOVE_THRESHOLD_PX) return;
+      void togglePlaybackFromUi();
+    });
+
+    sparkCanvasEl.addEventListener('pointerleave', () => {
+      canvasPointerDownPos = null;
+    });
+
     speedSelect.addEventListener('change', () => {
       const v = Number(speedSelect.value);
       if (!Number.isFinite(v) || v <= 0) return;
@@ -2949,6 +3002,7 @@
       const normalized = normalizeDirectoryUrl(dirUrl);
       if (!normalized || normalized === '/') return;
       const activeRequestId = requestId ?? (++sceneSelectionRequestId);
+      setSceneSwitching(true);
       selectedSceneDirectory = normalized;
       setViewerSceneTitle(getDirectoryDisplayName(normalized));
       if (urlDirSelectEl) {
@@ -2958,12 +3012,18 @@
       const candidates = Array.isArray(previewCandidates) && previewCandidates.length > 0
         ? previewCandidates
         : getScenePreviewCandidatesForDirectory(normalized);
-      await loadFromUrlText(normalized, {
-        viewerPreviewCandidates: candidates,
-        selectionRequestId: activeRequestId,
-      });
-      if (activeRequestId !== sceneSelectionRequestId) return;
-      await refreshDirectoryDropdown(currentDirectory);
+      try {
+        await loadFromUrlText(normalized, {
+          viewerPreviewCandidates: candidates,
+          selectionRequestId: activeRequestId,
+        });
+        if (activeRequestId !== sceneSelectionRequestId) return;
+        await refreshDirectoryDropdown(currentDirectory);
+      } finally {
+        if (activeRequestId === sceneSelectionRequestId) {
+          setSceneSwitching(false);
+        }
+      }
     }
 
     async function setScenePreviewCards(baseDir, directories) {
