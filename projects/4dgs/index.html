@@ -704,16 +704,18 @@
       justify-content: center;
       z-index: 1;
       pointer-events: none;
-      padding: clamp(12px, 2vw, 28px);
+      --viewer-window-padding: clamp(12px, 2vw, 28px);
+      padding: var(--viewer-window-padding);
     }
 
     .viewer-window .viewer-stack {
-      width: min(92vw, 1220px, calc(min(86vh, 760px) * 16 / 9));
+      width: min(92vw, 1220px, calc(min(86dvh, 760px) * 16 / 9));
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 14px;
       margin: auto;
+      max-height: calc(100dvh - (var(--viewer-window-padding) * 2));
       pointer-events: auto;
     }
 
@@ -846,6 +848,22 @@
       padding-right: 0;
     }
 
+    @media (orientation: landscape) and (max-height: 520px) {
+      .viewer-window {
+        --viewer-window-padding: clamp(6px, 1.2vh, 10px);
+      }
+
+      .viewer-window .viewer-stack {
+        width: min(96vw, 1220px, calc((100dvh - (var(--viewer-window-padding) * 2) - 72px) * 16 / 9));
+        gap: 8px;
+      }
+
+      .controls {
+        padding: 6px 8px;
+        gap: 6px;
+      }
+    }
+
     @media (max-width: 1100px) {
       .controls {
         grid-template-columns: auto minmax(0, 1fr);
@@ -937,16 +955,16 @@
       }
 
       .controls {
-        grid-template-columns: auto minmax(0, 1fr);
-        grid-template-areas:
-          'left progress'
-          'right right';
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas: 'left progress right';
         border-radius: 12px;
         padding: 8px;
         gap: 6px;
+        overflow-x: auto;
       }
 
       .controls .controls-left {
+        grid-area: left;
         justify-content: flex-start;
       }
 
@@ -956,10 +974,11 @@
       }
 
       .controls .controls-right {
-        width: 100%;
+        grid-area: right;
+        width: auto;
         display: flex;
         flex-wrap: nowrap;
-        justify-content: stretch;
+        justify-content: flex-end;
         gap: 6px;
       }
 
@@ -973,16 +992,16 @@
       .controls .controls-right > .import-button,
       .controls .controls-right > .reset-button,
       .controls .controls-right > #VRButton {
-        flex: 1 1 0;
-        min-width: 0;
-        width: 100%;
+        flex: 0 0 auto;
+        min-width: 64px;
+        width: auto;
         height: 28px;
         padding: 0 6px;
       }
 
       .controls .controls-right > #VRButton {
-        min-width: 0 !important;
-        width: 100% !important;
+        min-width: 64px !important;
+        width: auto !important;
         height: 28px !important;
         padding: 0 6px !important;
       }
@@ -1033,6 +1052,44 @@
       .viewer-close-button {
         transform: scale(0.7);
         transform-origin: top right;
+      }
+    }
+
+    @media (orientation: landscape) and (max-height: 520px) and (max-width: 900px) {
+      .controls {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas: 'left progress right';
+        align-items: center;
+      }
+
+      .controls .controls-left {
+        grid-area: left;
+      }
+
+      .controls .progress-wrap {
+        grid-area: progress;
+      }
+
+      .controls .controls-right {
+        grid-area: right;
+        width: auto;
+        flex-wrap: nowrap;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+
+      .controls .controls-right > .speed-select,
+      .controls .controls-right > .import-button,
+      .controls .controls-right > .reset-button,
+      .controls .controls-right > #VRButton {
+        flex: 0 0 auto;
+        width: auto;
+        min-width: 68px;
+      }
+
+      .controls .controls-right > #VRButton {
+        width: auto !important;
+        min-width: 68px !important;
       }
     }
   </style>
