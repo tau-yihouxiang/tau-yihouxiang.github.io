@@ -1143,7 +1143,9 @@
         mediumFrames: 'Medium (32 Frames)',
         longFrames: 'Long (All Frames)',
         import: 'Import',
-        reset: 'Reset',
+        reset: 'Recenter',
+        spatialOn: 'Spatial On',
+        spatialOff: 'Spatial Off',
         play: 'Play',
         pause: 'Pause',
         enterVr: 'Enter VR',
@@ -1165,6 +1167,12 @@
         langZh: '中文',
         langEn: 'English',
         importedFiles: 'Imported Files',
+        motionOff: 'Motion Off',
+        motionOn: 'Motion On',
+        motionUnsupported: 'No Motion Sensor',
+        motionDenied: 'Motion Denied',
+        enableMotion: 'Enable motion control',
+        disableMotion: 'Disable motion control',
       },
       zh: {
         heroTitle: 'PICO 6DoF 播放器',
@@ -1176,7 +1184,9 @@
         mediumFrames: '中（32 帧）',
         longFrames: '长（全部帧）',
         import: '导入',
-        reset: '重置',
+        reset: '回中',
+        spatialOn: '空间开',
+        spatialOff: '空间关',
         play: '播放',
         pause: '暂停',
         enterVr: '进入 VR',
@@ -1198,6 +1208,12 @@
         langZh: '中文',
         langEn: 'English',
         importedFiles: '本地文件',
+        motionOff: '体感关',
+        motionOn: '体感开',
+        motionUnsupported: '无体感传感器',
+        motionDenied: '体感被拒绝',
+        enableMotion: '启用体感控制',
+        disableMotion: '关闭体感控制',
       },
     };
 
@@ -1253,7 +1269,7 @@
 
     const sparkCanvasEl = document.querySelector(".spark-canvas");
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 1000);
+    const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.01, 1000);
     camera.position.set(0, 0, 0);
     const renderer = new THREE.WebGLRenderer({canvas: sparkCanvasEl});
     const frameEl = document.querySelector('.window-frame');
@@ -1515,6 +1531,53 @@
     };
     controls.fpsMovement.keycodeRotateMapping = {};
 
+    const IS_TOUCH_DEVICE = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    const IS_MOBILE_DEVICE = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      || (IS_TOUCH_DEVICE && Math.min(window.screen.width, window.screen.height) <= 1024);
+    const motionParams = new URLSearchParams(window.location.search);
+    const motionMoveAngleParam = Number(motionParams.get('motionMoveAngle'));
+    const motionRotateDeadzoneParam = Number(motionParams.get('motionRotateDeadzone'));
+    const MOBILE_MOTION_ROTATE_DEADZONE_DEG = THREE.MathUtils.clamp(
+      Number.isFinite(motionRotateDeadzoneParam) ? motionRotateDeadzoneParam : 4,
+      1,
+      12,
+    );
+    const MOBILE_MOTION_ROTATE_ABS_MAX_DEG = 5;
+    const MOBILE_MOTION_ROTATE_RANGE_DEG = MOBILE_MOTION_ROTATE_ABS_MAX_DEG;
+    const MOBILE_MOTION_ROTATE_MAX_DEG = MOBILE_MOTION_ROTATE_ABS_MAX_DEG;
+    const MOBILE_MOTION_MOVE_START_DEG = THREE.MathUtils.clamp(
+      Number.isFinite(motionMoveAngleParam) ? motionMoveAngleParam : 2,
+      0.5,
+      MOBILE_MOTION_ROTATE_ABS_MAX_DEG - 0.5,
+    );
+    const MOBILE_MOTION_MOVE_MAX_DEG = MOBILE_MOTION_ROTATE_ABS_MAX_DEG;
+    const MOBILE_MOTION_MOVE_MAX_DISTANCE_FORWARD = 0.3;
+    const MOBILE_MOTION_MOVE_MAX_DISTANCE_BACKWARD = 0.1;
+    const MOBILE_MOTION_RECENTER_RATE = 2.2;
+    const MOBILE_MOTION_REST_ANGLE_DEG = 6;
+    const MOBILE_MOTION_EVENT_TIMEOUT_MS = 450;
+
+    const motionForwardVector = new THREE.Vector3();
+    const motionState = {
+      supported: typeof window.DeviceOrientationEvent !== 'undefined',
+      enabled: false,
+      listenersBound: false,
+      permissionDenied: false,
+      baselineBeta: null,
+      baselineGamma: null,
+      filteredBetaDelta: 0,
+      filteredGammaDelta: 0,
+      lastBeta: null,
+      lastGamma: null,
+      lastEventTimeMs: 0,
+      anchorReady: false,
+      anchorOrbitYaw: 0,
+      anchorOrbitPitch: 0,
+      anchorOrbitDistance: 1.5,
+      anchorOrbitTarget: new THREE.Vector3(),
+      anchorForward: new THREE.Vector3(0, 0, -1),
+    };
+
     const orbitTarget = new THREE.Vector3(0, 0, 0);
     let orbitYaw = 0;
     let orbitPitch = 0;
@@ -1532,6 +1595,240 @@
       ArrowUp: false,
       ArrowDown: false,
     };
+
+    function wrapSignedDeltaDegrees(value) {
+      const normalized = ((value + 180) % 360 + 360) % 360 - 180;
+      return normalized;
+    }
+
+    function resetMotionBaseline() {
+      motionState.baselineBeta = null;
+      motionState.baselineGamma = null;
+      motionState.filteredBetaDelta = 0;
+      motionState.filteredGammaDelta = 0;
+      motionState.lastBeta = null;
+      motionState.lastGamma = null;
+      motionState.lastEventTimeMs = 0;
+    }
+
+    function resetMotionAnchor() {
+      motionState.anchorReady = false;
+    }
+
+    function captureMotionAnchorFromCurrentCamera() {
+      syncOrbitFromCamera();
+      motionState.anchorOrbitYaw = orbitYaw;
+      motionState.anchorOrbitPitch = orbitPitch;
+      motionState.anchorOrbitDistance = orbitDistance;
+      motionState.anchorOrbitTarget.copy(orbitTarget);
+      camera.getWorldDirection(motionState.anchorForward);
+      motionState.anchorForward.y = 0;
+      if (motionState.anchorForward.lengthSq() <= 1e-6) {
+        motionState.anchorForward.set(0, 0, -1);
+      } else {
+        motionState.anchorForward.normalize();
+      }
+      motionState.anchorReady = true;
+    }
+
+    function applyDeadzoneAndNormalize(value, deadzoneDeg, maxRangeDeg) {
+      const absValue = Math.abs(value);
+      if (absValue <= deadzoneDeg) return 0;
+      const normalized = (absValue - deadzoneDeg) / Math.max(1, maxRangeDeg - deadzoneDeg);
+      return Math.sign(value) * THREE.MathUtils.clamp(normalized, 0, 1);
+    }
+
+    function handleDeviceOrientation(event) {
+      if (!motionState.enabled) return;
+      const { beta, gamma } = event;
+      if (!Number.isFinite(beta) || !Number.isFinite(gamma)) return;
+
+      motionState.lastBeta = beta;
+      motionState.lastGamma = gamma;
+      motionState.lastEventTimeMs = performance.now();
+
+      if (motionState.baselineBeta == null || motionState.baselineGamma == null) {
+        motionState.baselineBeta = beta;
+        motionState.baselineGamma = gamma;
+        return;
+      }
+
+      const betaDelta = THREE.MathUtils.clamp(
+        wrapSignedDeltaDegrees(beta - motionState.baselineBeta),
+        -60,
+        60,
+      );
+      const gammaDelta = THREE.MathUtils.clamp(
+        wrapSignedDeltaDegrees(gamma - motionState.baselineGamma),
+        -60,
+        60,
+      );
+
+      const smoothFactor = 0.18;
+      motionState.filteredBetaDelta += (betaDelta - motionState.filteredBetaDelta) * smoothFactor;
+      motionState.filteredGammaDelta += (gammaDelta - motionState.filteredGammaDelta) * smoothFactor;
+    }
+
+    function applyMotionAutoRecenter(deltaSeconds) {
+      if (!motionState.enabled) return;
+      if (!Number.isFinite(motionState.lastBeta) || !Number.isFinite(motionState.lastGamma)) return;
+      if (!Number.isFinite(motionState.baselineBeta) || !Number.isFinite(motionState.baselineGamma)) return;
+
+      const nowMs = performance.now();
+      if (nowMs - motionState.lastEventTimeMs > MOBILE_MOTION_EVENT_TIMEOUT_MS) {
+        motionState.filteredBetaDelta *= 0.8;
+        motionState.filteredGammaDelta *= 0.8;
+        return;
+      }
+
+      const betaDelta = THREE.MathUtils.clamp(
+        wrapSignedDeltaDegrees(motionState.lastBeta - motionState.baselineBeta),
+        -60,
+        60,
+      );
+      const gammaDelta = THREE.MathUtils.clamp(
+        wrapSignedDeltaDegrees(motionState.lastGamma - motionState.baselineGamma),
+        -60,
+        60,
+      );
+
+      const seemsStill = Math.abs(betaDelta) < MOBILE_MOTION_REST_ANGLE_DEG
+        && Math.abs(gammaDelta) < MOBILE_MOTION_REST_ANGLE_DEG;
+      const hasIntent = Math.abs(betaDelta) >= MOBILE_MOTION_MOVE_START_DEG
+        || Math.abs(gammaDelta) >= MOBILE_MOTION_ROTATE_DEADZONE_DEG + 3;
+
+      if (seemsStill && !hasIntent) {
+        const adapt = THREE.MathUtils.clamp(MOBILE_MOTION_RECENTER_RATE * deltaSeconds, 0, 0.5);
+        motionState.baselineBeta += betaDelta * adapt;
+        motionState.baselineGamma += gammaDelta * adapt;
+      }
+    }
+
+    function bindMotionListeners() {
+      if (motionState.listenersBound) return;
+      window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+      window.addEventListener('orientationchange', () => {
+        resetMotionBaseline();
+      });
+      motionState.listenersBound = true;
+    }
+
+    function setMotionEnabled(enabled) {
+      const nextEnabled = Boolean(enabled && motionState.supported);
+      motionState.enabled = nextEnabled;
+      if (nextEnabled) {
+        bindMotionListeners();
+        resetMotionBaseline();
+        resetMotionAnchor();
+      } else {
+        resetMotionBaseline();
+        resetMotionAnchor();
+      }
+    }
+
+    async function requestMotionPermissionIfNeeded() {
+      if (!motionState.supported) return false;
+
+      const pending = [];
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        pending.push(DeviceOrientationEvent.requestPermission());
+      }
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+        pending.push(DeviceMotionEvent.requestPermission());
+      }
+      if (!pending.length) return true;
+
+      const results = await Promise.allSettled(pending);
+      return results.every((entry) => entry.status === 'fulfilled' && entry.value === 'granted');
+    }
+
+    function applyMobileMotionInput(deltaSeconds) {
+      if (!motionState.enabled || deltaSeconds <= 0) {
+        return { rotated: false, moved: false };
+      }
+
+      if (!motionState.anchorReady) {
+        captureMotionAnchorFromCurrentCamera();
+      }
+
+      applyMotionAutoRecenter(deltaSeconds);
+
+      let rotated = false;
+      let moved = false;
+
+      const yawInput = applyDeadzoneAndNormalize(
+        THREE.MathUtils.clamp(
+          motionState.filteredGammaDelta,
+          -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
+          MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
+        ),
+        MOBILE_MOTION_ROTATE_DEADZONE_DEG,
+        MOBILE_MOTION_ROTATE_RANGE_DEG,
+      );
+      const pitchInput = applyDeadzoneAndNormalize(
+        THREE.MathUtils.clamp(
+          -motionState.filteredBetaDelta,
+          -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
+          MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
+        ),
+        MOBILE_MOTION_ROTATE_DEADZONE_DEG,
+        MOBILE_MOTION_ROTATE_RANGE_DEG,
+      );
+
+      if (Math.abs(yawInput) > 0 || Math.abs(pitchInput) > 0) {
+        const rotateLimitRad = THREE.MathUtils.degToRad(MOBILE_MOTION_ROTATE_MAX_DEG);
+        orbitTarget.copy(motionState.anchorOrbitTarget);
+        orbitDistance = motionState.anchorOrbitDistance;
+        orbitYaw = motionState.anchorOrbitYaw - yawInput * rotateLimitRad;
+        orbitPitch = THREE.MathUtils.clamp(
+          motionState.anchorOrbitPitch + pitchInput * rotateLimitRad,
+          -Math.PI / 2 + 0.05,
+          Math.PI / 2 - 0.05,
+        );
+        applyOrbit();
+        rotated = true;
+      }
+
+      const moveInput = applyDeadzoneAndNormalize(
+        THREE.MathUtils.clamp(
+          -motionState.filteredBetaDelta,
+          -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
+          MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
+        ),
+        MOBILE_MOTION_MOVE_START_DEG,
+        MOBILE_MOTION_MOVE_MAX_DEG,
+      );
+
+      if (Math.abs(moveInput) > 0) {
+        const distance = moveInput >= 0
+          ? moveInput * MOBILE_MOTION_MOVE_MAX_DISTANCE_FORWARD
+          : moveInput * MOBILE_MOTION_MOVE_MAX_DISTANCE_BACKWARD;
+        motionForwardVector.copy(motionState.anchorForward);
+        orbitTarget.copy(motionState.anchorOrbitTarget).addScaledVector(motionForwardVector, distance);
+        orbitDistance = motionState.anchorOrbitDistance;
+        const rotateLimitRad = THREE.MathUtils.degToRad(MOBILE_MOTION_ROTATE_MAX_DEG);
+        orbitYaw = motionState.anchorOrbitYaw - yawInput * rotateLimitRad;
+        orbitPitch = THREE.MathUtils.clamp(
+          motionState.anchorOrbitPitch + pitchInput * rotateLimitRad,
+          -Math.PI / 2 + 0.05,
+          Math.PI / 2 - 0.05,
+        );
+        applyOrbit();
+        moved = Math.abs(distance) > 1e-6;
+      } else if (!rotated) {
+        orbitTarget.copy(motionState.anchorOrbitTarget);
+        orbitDistance = motionState.anchorOrbitDistance;
+        orbitYaw = motionState.anchorOrbitYaw;
+        orbitPitch = THREE.MathUtils.clamp(
+          motionState.anchorOrbitPitch,
+          -Math.PI / 2 + 0.05,
+          Math.PI / 2 - 0.05,
+        );
+        applyOrbit();
+      }
+
+      return { rotated, moved };
+    }
 
     function applyOrbit() {
       const cosPitch = Math.cos(orbitPitch);
@@ -1567,11 +1864,15 @@
       orbitDistance = initialOrbitDistance;
       applyOrbit();
       lastCameraPos.copy(camera.position);
+      if (motionState.enabled) {
+        resetMotionBaseline();
+        resetMotionAnchor();
+      }
     }
 
     function resetViewState() {
       resetView();
-      updateFov(35);
+      updateFov(30);
     }
 
     window.addEventListener('keydown', (event) => {
@@ -1789,6 +2090,35 @@
         document.body.appendChild(vrButton);
       }
     }
+
+    function updateSpatialToggleButtonUI() {
+      if (!resetBtn) return;
+      const isOn = motionState.enabled;
+      const key = isOn ? 'spatialOn' : 'spatialOff';
+      resetBtn.textContent = t(key);
+      resetBtn.setAttribute('aria-label', t(key));
+      resetBtn.setAttribute('title', t(key));
+    }
+
+    async function toggleSpatialFromButton() {
+      const nextEnabled = !motionState.enabled;
+
+      if (!nextEnabled) {
+        setMotionEnabled(false);
+        return;
+      }
+
+      if (!IS_MOBILE_DEVICE || !motionState.supported) {
+        setMotionEnabled(false);
+        return;
+      }
+
+      const granted = await requestMotionPermissionIfNeeded();
+      motionState.permissionDenied = !granted;
+      setMotionEnabled(granted);
+    }
+
+    updateSpatialToggleButtonUI();
 
     function updateFov(value) {
       const nextFov = Math.min(90, Math.max(10, Number(value)));
@@ -2284,8 +2614,10 @@
       showFrame(index);
     });
 
-    resetBtn.addEventListener('click', () => {
+    resetBtn.addEventListener('click', async () => {
+      await toggleSpatialFromButton();
       resetViewState();
+      updateSpatialToggleButtonUI();
     });
 
     viewerCloseBtn?.addEventListener('click', async () => {
@@ -2294,7 +2626,15 @@
 
     updateFov(camera.fov);
 
+    let lastAnimationTimeMs = null;
+
     renderer.setAnimationLoop(function animate(timeMs) {
+      const nowMs = Number.isFinite(timeMs) ? timeMs : performance.now();
+      if (!Number.isFinite(lastAnimationTimeMs)) {
+        lastAnimationTimeMs = nowMs;
+      }
+      const deltaSeconds = Math.max(0, Math.min(0.1, (nowMs - lastAnimationTimeMs) / 1000));
+      lastAnimationTimeMs = nowMs;
       const isInVR = renderer.xr.isPresenting;
 
       if (!isInVR) {
@@ -2326,8 +2666,13 @@
           applyOrbit();
         }
 
+        const motionResult = applyMobileMotionInput(deltaSeconds);
+        if (motionResult.rotated) {
+          isOrbiting = true;
+        }
+
         const deltaPos = camera.position.clone().sub(lastCameraPos);
-        if (isOrbiting) {
+        if (isOrbiting || motionResult.moved) {
           lastCameraPos.copy(camera.position);
         } else if (deltaPos.lengthSq() > 0) {
           orbitTarget.add(deltaPos);
@@ -3453,10 +3798,10 @@
             </select>
             <div class="fov-wrap">
               <span class="fov-label">FOV</span>
-              <input class="fov-slider" type="range" min="10" max="90" step="1" value="35" />
-              <span class="fov-value">35°</span>
+              <input class="fov-slider" type="range" min="10" max="90" step="1" value="30" />
+              <span class="fov-value">30°</span>
             </div>
-            <button class="reset-button" data-i18n-key="reset">Reset</button>
+            <button class="reset-button" data-i18n-key="spatialOff">Spatial Off</button>
           </div>
         </div>
       </div>
