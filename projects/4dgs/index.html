@@ -1521,14 +1521,7 @@
     const controls = new SparkControls({ canvas: sparkCanvasEl });
     controls.fpsMovement.rotateSpeed = 0.6;
     controls.fpsMovement.moveSpeed = 0.8;
-    controls.fpsMovement.keycodeMoveMapping = {
-      KeyW: new THREE.Vector3(0, 0, -1),
-      KeyS: new THREE.Vector3(0, 0, 1),
-      KeyA: new THREE.Vector3(-1, 0, 0),
-      KeyD: new THREE.Vector3(1, 0, 0),
-      KeyR: new THREE.Vector3(0, 1, 0),
-      KeyF: new THREE.Vector3(0, -1, 0),
-    };
+    controls.fpsMovement.keycodeMoveMapping = {};
     controls.fpsMovement.keycodeRotateMapping = {};
 
     const IS_TOUCH_DEVICE = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
@@ -1551,13 +1544,16 @@
       MOBILE_MOTION_ROTATE_ABS_MAX_DEG - 0.5,
     );
     const MOBILE_MOTION_MOVE_MAX_DEG = MOBILE_MOTION_ROTATE_ABS_MAX_DEG;
-    const MOBILE_MOTION_MOVE_MAX_DISTANCE_FORWARD = 0.3;
+    const MOBILE_MOTION_MOVE_MAX_DISTANCE_FORWARD = 0.5;
     const MOBILE_MOTION_MOVE_MAX_DISTANCE_BACKWARD = 0.1;
+    const MOBILE_MOTION_MOVE_MAX_DISTANCE_LATERAL = 0.1;
     const MOBILE_MOTION_RECENTER_RATE = 2.2;
     const MOBILE_MOTION_REST_ANGLE_DEG = 6;
     const MOBILE_MOTION_EVENT_TIMEOUT_MS = 450;
 
     const motionForwardVector = new THREE.Vector3();
+    const motionRightVector = new THREE.Vector3();
+    const motionOffsetVector = new THREE.Vector3();
     const motionState = {
       supported: typeof window.DeviceOrientationEvent !== 'undefined',
       enabled: false,
@@ -1582,19 +1578,51 @@
     let orbitYaw = 0;
     let orbitPitch = 0;
     let orbitDistance = 1.5;
-    const orbitSpeed = 0.005;
     const lastCameraPos = new THREE.Vector3().copy(camera.position);
     let initialOrbitTarget = new THREE.Vector3(0, 0, 0);
     let initialOrbitYaw = 0;
     let initialOrbitPitch = 0;
     let initialOrbitDistance = 1.5;
     let hasInitialOrbit = false;
-    const orbitKeyState = {
-      ArrowLeft: false,
-      ArrowRight: false,
-      ArrowUp: false,
-      ArrowDown: false,
+    const spatialKeyState = {
+      turnLeft: false,
+      turnRight: false,
+      tiltForward: false,
+      tiltBackward: false,
+      moveForward: false,
+      moveBackward: false,
+      moveLeft: false,
+      moveRight: false,
     };
+
+    const keyboardRotationBindings = {
+      turnLeft: new Set(['ArrowLeft']),
+      turnRight: new Set(['ArrowRight']),
+      tiltForward: new Set(['ArrowUp']),
+      tiltBackward: new Set(['ArrowDown']),
+    };
+
+    const keyboardMoveBindings = {
+      moveForward: new Set(['KeyW']),
+      moveBackward: new Set(['KeyS']),
+      moveLeft: new Set(['KeyA']),
+      moveRight: new Set(['KeyD']),
+    };
+
+    function updateSpatialKeyState(code, pressed) {
+      let consumed = false;
+      for (const [name, codes] of Object.entries(keyboardRotationBindings)) {
+        if (!codes.has(code)) continue;
+        spatialKeyState[name] = pressed;
+        consumed = true;
+      }
+      for (const [name, codes] of Object.entries(keyboardMoveBindings)) {
+        if (!codes.has(code)) continue;
+        spatialKeyState[name] = pressed;
+        consumed = true;
+      }
+      return consumed;
+    }
 
     function wrapSignedDeltaDegrees(value) {
       const normalized = ((value + 180) % 360 + 360) % 360 - 180;
@@ -1714,10 +1742,12 @@
     }
 
     function setMotionEnabled(enabled) {
-      const nextEnabled = Boolean(enabled && motionState.supported);
+      const nextEnabled = Boolean(enabled);
       motionState.enabled = nextEnabled;
       if (nextEnabled) {
-        bindMotionListeners();
+        if (motionState.supported) {
+          bindMotionListeners();
+        }
         resetMotionBaseline();
         resetMotionAnchor();
       } else {
@@ -1751,14 +1781,40 @@
         captureMotionAnchorFromCurrentCamera();
       }
 
-      applyMotionAutoRecenter(deltaSeconds);
+      if (motionState.supported) {
+        applyMotionAutoRecenter(deltaSeconds);
+      }
+
+      const keyboardGammaDelta = (
+        (spatialKeyState.turnRight ? 1 : 0) - (spatialKeyState.turnLeft ? 1 : 0)
+      ) * MOBILE_MOTION_ROTATE_ABS_MAX_DEG;
+      const keyboardBetaDelta = (
+        (spatialKeyState.tiltBackward ? 1 : 0) - (spatialKeyState.tiltForward ? 1 : 0)
+      ) * MOBILE_MOTION_ROTATE_ABS_MAX_DEG;
+      const keyboardForwardInput = (
+        (spatialKeyState.moveForward ? 1 : 0) - (spatialKeyState.moveBackward ? 1 : 0)
+      );
+      const keyboardLateralInput = (
+        (spatialKeyState.moveRight ? 1 : 0) - (spatialKeyState.moveLeft ? 1 : 0)
+      );
+
+      const combinedGammaDelta = THREE.MathUtils.clamp(
+        motionState.filteredGammaDelta + keyboardGammaDelta,
+        -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
+        MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
+      );
+      const combinedBetaDelta = THREE.MathUtils.clamp(
+        motionState.filteredBetaDelta + keyboardBetaDelta,
+        -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
+        MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
+      );
 
       let rotated = false;
       let moved = false;
 
       const yawInput = applyDeadzoneAndNormalize(
         THREE.MathUtils.clamp(
-          motionState.filteredGammaDelta,
+          combinedGammaDelta,
           -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
           MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
         ),
@@ -1767,7 +1823,7 @@
       );
       const pitchInput = applyDeadzoneAndNormalize(
         THREE.MathUtils.clamp(
-          -motionState.filteredBetaDelta,
+          -combinedBetaDelta,
           -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
           MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
         ),
@@ -1791,7 +1847,7 @@
 
       const moveInput = applyDeadzoneAndNormalize(
         THREE.MathUtils.clamp(
-          -motionState.filteredBetaDelta,
+          -combinedBetaDelta,
           -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
           MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
         ),
@@ -1799,12 +1855,20 @@
         MOBILE_MOTION_MOVE_MAX_DEG,
       );
 
-      if (Math.abs(moveInput) > 0) {
-        const distance = moveInput >= 0
-          ? moveInput * MOBILE_MOTION_MOVE_MAX_DISTANCE_FORWARD
-          : moveInput * MOBILE_MOTION_MOVE_MAX_DISTANCE_BACKWARD;
+      const forwardInput = THREE.MathUtils.clamp(moveInput + keyboardForwardInput, -1, 1);
+      const lateralInput = THREE.MathUtils.clamp(keyboardLateralInput, -1, 1);
+
+      if (Math.abs(forwardInput) > 0 || Math.abs(lateralInput) > 0) {
+        const distanceForward = forwardInput >= 0
+          ? forwardInput * MOBILE_MOTION_MOVE_MAX_DISTANCE_FORWARD
+          : forwardInput * MOBILE_MOTION_MOVE_MAX_DISTANCE_BACKWARD;
+        const distanceLateral = lateralInput * MOBILE_MOTION_MOVE_MAX_DISTANCE_LATERAL;
         motionForwardVector.copy(motionState.anchorForward);
-        orbitTarget.copy(motionState.anchorOrbitTarget).addScaledVector(motionForwardVector, distance);
+        motionRightVector.set(0, 1, 0).cross(motionForwardVector).normalize();
+        motionOffsetVector.set(0, 0, 0);
+        motionOffsetVector.addScaledVector(motionForwardVector, distanceForward);
+        motionOffsetVector.addScaledVector(motionRightVector, distanceLateral);
+        orbitTarget.copy(motionState.anchorOrbitTarget).add(motionOffsetVector);
         orbitDistance = motionState.anchorOrbitDistance;
         const rotateLimitRad = THREE.MathUtils.degToRad(MOBILE_MOTION_ROTATE_MAX_DEG);
         orbitYaw = motionState.anchorOrbitYaw - yawInput * rotateLimitRad;
@@ -1814,7 +1878,7 @@
           Math.PI / 2 - 0.05,
         );
         applyOrbit();
-        moved = Math.abs(distance) > 1e-6;
+        moved = motionOffsetVector.lengthSq() > 1e-12;
       } else if (!rotated) {
         orbitTarget.copy(motionState.anchorOrbitTarget);
         orbitDistance = motionState.anchorOrbitDistance;
@@ -1884,15 +1948,13 @@
           return;
         }
       }
-      if (event.code in orbitKeyState) {
-        orbitKeyState[event.code] = true;
+      if (updateSpatialKeyState(event.code, true)) {
         event.preventDefault();
       }
     });
 
     window.addEventListener('keyup', (event) => {
-      if (event.code in orbitKeyState) {
-        orbitKeyState[event.code] = false;
+      if (updateSpatialKeyState(event.code, false)) {
         event.preventDefault();
       }
     });
@@ -2108,8 +2170,8 @@
         return;
       }
 
-      if (!IS_MOBILE_DEVICE || !motionState.supported) {
-        setMotionEnabled(false);
+      if (!motionState.supported || !IS_MOBILE_DEVICE) {
+        setMotionEnabled(true);
         return;
       }
 
@@ -2645,31 +2707,8 @@
         resize();
         controls.update(camera);
 
-        let isOrbiting = false;
-
-        if (
-          orbitKeyState.ArrowLeft ||
-          orbitKeyState.ArrowRight ||
-          orbitKeyState.ArrowUp ||
-          orbitKeyState.ArrowDown
-        ) {
-          isOrbiting = true;
-          syncOrbitFromCamera();
-          if (orbitKeyState.ArrowLeft) orbitYaw += orbitSpeed;
-          if (orbitKeyState.ArrowRight) orbitYaw -= orbitSpeed;
-          if (orbitKeyState.ArrowUp) {
-            orbitPitch = Math.min(Math.PI / 2 - 0.05, orbitPitch + orbitSpeed);
-          }
-          if (orbitKeyState.ArrowDown) {
-            orbitPitch = Math.max(-Math.PI / 2 + 0.05, orbitPitch - orbitSpeed);
-          }
-          applyOrbit();
-        }
-
         const motionResult = applyMobileMotionInput(deltaSeconds);
-        if (motionResult.rotated) {
-          isOrbiting = true;
-        }
+        const isOrbiting = motionResult.rotated;
 
         const deltaPos = camera.position.clone().sub(lastCameraPos);
         if (isOrbiting || motionResult.moved) {
