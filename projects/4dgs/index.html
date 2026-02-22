@@ -1144,8 +1144,8 @@
         longFrames: 'Long (All Frames)',
         import: 'Import',
         reset: 'Recenter',
-        spatialOn: 'Spatial On',
-        spatialOff: 'Spatial Off',
+        spatialOn: 'Enable Spatial',
+        spatialOff: 'Disable Spatial',
         play: 'Play',
         pause: 'Pause',
         enterVr: 'Enter VR',
@@ -1185,8 +1185,8 @@
         longFrames: '长（全部帧）',
         import: '导入',
         reset: '回中',
-        spatialOn: '空间开',
-        spatialOff: '空间关',
+        spatialOn: '开启空间',
+        spatialOff: '关闭空间',
         play: '播放',
         pause: '暂停',
         enterVr: '进入 VR',
@@ -2156,7 +2156,7 @@
     function updateSpatialToggleButtonUI() {
       if (!resetBtn) return;
       const isOn = motionState.enabled;
-      const key = isOn ? 'spatialOn' : 'spatialOff';
+      const key = isOn ? 'spatialOff' : 'spatialOn';
       resetBtn.textContent = t(key);
       resetBtn.setAttribute('aria-label', t(key));
       resetBtn.setAttribute('title', t(key));
@@ -3840,7 +3840,7 @@
               <input class="fov-slider" type="range" min="10" max="90" step="1" value="30" />
               <span class="fov-value">30°</span>
             </div>
-            <button class="reset-button" data-i18n-key="spatialOff">Spatial Off</button>
+            <button class="reset-button" data-i18n-key="spatialOn">Enable Spatial</button>
           </div>
         </div>
       </div>
