@@ -487,6 +487,25 @@
       display: none;
     }
 
+    .author-credit {
+      margin-top: 10px;
+      font-size: 0.76rem;
+      color: rgba(255, 255, 255, 0.68);
+      line-height: 1.2;
+      letter-spacing: 0.01em;
+      text-align: center;
+      user-select: none;
+    }
+
+    .author-credit-viewer {
+      width: 100%;
+      text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+    }
+
+    .author-credit-import {
+      margin-top: 12px;
+    }
+
     .controls {
       position: relative;
       display: grid;
@@ -3843,6 +3862,7 @@
             <button class="reset-button" data-i18n-key="spatialOn">Enable Spatial</button>
           </div>
         </div>
+        <div class="author-credit author-credit-viewer">@author: Tao Hu</div>
       </div>
     </div>
   </div>
@@ -3879,6 +3899,7 @@
           </button>
         </div>
       </form>
+      <div class="author-credit author-credit-import">@author: Tao Hu</div>
     </div>
   </div>
 </body>
