@@ -137,6 +137,31 @@
       background: rgba(42, 42, 42, 0.75);
     }
 
+    .debug-panel {
+      position: absolute;
+      bottom: clamp(6px, 1.2vw, 10px);
+      right: clamp(6px, 1.2vw, 10px);
+      z-index: 3;
+      background: rgba(10, 10, 10, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 7px 10px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      pointer-events: none;
+      font-size: 0.72rem;
+      font-family: ui-monospace, 'Courier New', monospace;
+      color: rgba(255, 255, 255, 0.9);
+      line-height: 1.7;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+      min-width: 148px;
+    }
+
+    .controls .debug-button.is-active {
+      background: rgba(255, 255, 255, 0.22) !important;
+      color: #fff !important;
+    }
+
     .hero-logo {
       text-align: center;
       margin-bottom: 2rem;
@@ -521,6 +546,12 @@
       z-index: 2;
       width: 100%;
       pointer-events: auto;
+      transition: opacity 0.3s ease;
+    }
+
+    .controls.is-disabled {
+      opacity: 0.35;
+      pointer-events: none;
     }
 
     .controls .controls-left,
@@ -834,6 +865,7 @@
     .controls .controls-right > .speed-select,
     .controls .controls-right > .import-button,
     .controls .controls-right > .reset-button,
+    .controls .controls-right > .debug-button,
     .controls .controls-right > #VRButton {
       min-width: 80px;
       height: 30px;
@@ -1011,6 +1043,7 @@
       .controls .controls-right > .speed-select,
       .controls .controls-right > .import-button,
       .controls .controls-right > .reset-button,
+      .controls .controls-right > .debug-button,
       .controls .controls-right > #VRButton {
         flex: 0 0 auto;
         min-width: 64px;
@@ -1101,6 +1134,7 @@
       .controls .controls-right > .speed-select,
       .controls .controls-right > .import-button,
       .controls .controls-right > .reset-button,
+      .controls .controls-right > .debug-button,
       .controls .controls-right > #VRButton {
         flex: 0 0 auto;
         width: auto;
@@ -1422,6 +1456,52 @@
 
     drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
 
+    // ── VR debug HUD (3D plane in the playback window) ─────────────────────────
+    const VR_HUD_CW = 1536;
+    const VR_HUD_CH = 480;
+    const vrDebugCanvas = document.createElement('canvas');
+    vrDebugCanvas.width = VR_HUD_CW;
+    vrDebugCanvas.height = VR_HUD_CH;
+    const vrDebugTexture = new THREE.CanvasTexture(vrDebugCanvas);
+    vrDebugTexture.generateMipmaps = false;
+    vrDebugTexture.minFilter = THREE.LinearFilter;
+    vrDebugTexture.magFilter = THREE.LinearFilter;
+    const vrDebugHudMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.60, 0.1875),
+      new THREE.MeshBasicMaterial({
+        map: vrDebugTexture,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    vrDebugHudMesh.renderOrder = 9999;
+    vrDebugHudMesh.visible = false;
+    vrFrameGroup.add(vrDebugHudMesh);
+
+    function drawVrDebugHud(fps, resW, resH, fovText) {
+      const ctx = vrDebugCanvas.getContext('2d');
+      const cw = VR_HUD_CW;
+      const ch = VR_HUD_CH;
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.fillStyle = 'rgba(10,10,10,0.78)';
+      roundRect(ctx, 0, 0, cw, ch, 54);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      ctx.lineWidth = 6;
+      roundRect(ctx, 3, 3, cw - 6, ch - 6, 51);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.font = 'bold 108px ui-monospace, monospace';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`FPS: ${fps}`, 54, ch * 0.20);
+      ctx.fillText(`RES: ${resW}\u00d7${resH}`, 54, ch * 0.53);
+      ctx.fillText(fovText, 54, ch * 0.84);
+      vrDebugTexture.needsUpdate = true;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     function centerSplatInVrWindow() {
       if (!loadedSplat) return;
       vrBounds.setFromObject(loadedSplat);
@@ -1500,11 +1580,19 @@
       xrPlaybackElapsedMs = 0;
     }
 
+    // Force XRWebGLLayer path (avoid XRProjectionLayer which causes black screen
+    // with reduced framebuffer scale on some devices).
+    if (typeof XRWebGLBinding !== 'undefined' && XRWebGLBinding.prototype.createProjectionLayer) {
+      delete XRWebGLBinding.prototype.createProjectionLayer;
+    }
+    renderer.xr.setFramebufferScaleFactor(1.0);
+
     renderer.xr.addEventListener('sessionstart', () => {
       if (vrButton) {
         vrButton.setAttribute('aria-label', t('exitVr'));
         vrButton.setAttribute('title', t('exitVr'));
       }
+      if (debugVisible) debugLastUpdateMs = -Infinity; // force immediate HUD draw
       vrFrameGroup.visible = true;
       vrWindowMask.visible = true;
       vrFrameInitialized = false;
@@ -1523,8 +1611,8 @@
         vrButton.setAttribute('aria-label', t('enterVr'));
         vrButton.setAttribute('title', t('enterVr'));
       }
+      vrDebugHudMesh.visible = false;
       vrFrameGroup.visible = false;
-      vrWindowMask.visible = false;
       localFrame.position.set(0, 0, 0);
       localFrame.rotation.set(0, 0, 0);
       localFrame.scale.set(1, 1, 1);
@@ -2137,6 +2225,11 @@
     const fovSlider = document.querySelector('.fov-slider');
     const fovValue = document.querySelector('.fov-value');
     const controlsRightEl = document.querySelector('.controls-right');
+    const debugBtn = document.querySelector('.debug-button');
+    const debugPanelEl = document.querySelector('.debug-panel');
+    const debugFpsEl = debugPanelEl?.querySelector('.debug-fps');
+    const debugResEl = debugPanelEl?.querySelector('.debug-resolution');
+    const debugFovEl = debugPanelEl?.querySelector('.debug-fov');
     const languageSelectEl = document.querySelector('.language-select');
 
     applyStaticI18n();
@@ -2172,6 +2265,52 @@
         document.body.appendChild(vrButton);
       }
     }
+
+    // ── Debug panel ──────────────────────────────────────────────────────────
+    let debugVisible = false;
+    const fpsSampleFrames = [];    // timestamps (ms) of recent frames
+    let debugLastUpdateMs = -Infinity;
+
+    function updateDebugPanel(measuredFps) {
+      if (!debugPanelEl) return;
+      const isInVR = renderer.xr.isPresenting;
+
+      if (debugFpsEl) debugFpsEl.textContent = `FPS: ${measuredFps}`;
+
+      const w = renderer.domElement.width;
+      const h = renderer.domElement.height;
+      if (debugResEl) debugResEl.textContent = `RES: ${w}×${h}`;
+
+      const sceneFov = Math.round(camera.fov);
+      let fovText;
+      if (isInVR) {
+        const xrCam = renderer.xr.getCamera();
+        if (xrCam && xrCam.cameras && xrCam.cameras.length > 0) {
+          const m = xrCam.cameras[0].projectionMatrix.elements;
+          const hmdFovV = Math.round(2 * Math.atan(1 / Math.abs(m[5])) * 180 / Math.PI);
+          fovText = `FOV: ${sceneFov}° / HMD: ${hmdFovV}°`;
+        } else {
+          fovText = `FOV: ${sceneFov}°`;
+        }
+        if (debugFovEl) debugFovEl.textContent = fovText;
+        drawVrDebugHud(measuredFps, w, h, fovText);
+      } else {
+        fovText = `FOV: ${sceneFov}°`;
+        if (debugFovEl) debugFovEl.textContent = fovText;
+      }
+    }
+
+    if (debugBtn) {
+      debugBtn.addEventListener('click', () => {
+        debugVisible = !debugVisible;
+        debugBtn.classList.toggle('is-active', debugVisible);
+        if (debugPanelEl) debugPanelEl.hidden = !debugVisible;
+        if (debugVisible) {
+          debugLastUpdateMs = -Infinity; // force immediate update
+        }
+      });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     function updateSpatialToggleButtonUI() {
       if (!resetBtn) return;
@@ -2303,6 +2442,8 @@
     function showViewerInterface() {
       document.querySelector('.container').classList.add('hidden');
       document.querySelector('.canvas-container').classList.remove('invisible');
+      const controlsEl = document.querySelector('.controls');
+      if (controlsEl) controlsEl.classList.add('is-disabled');
     }
 
     function showImportInterface() {
@@ -2407,6 +2548,8 @@
         mesh.visible = true;
         loadedSplat = mesh;
         hideViewerPreviewOverlay();
+        const controlsEl = document.querySelector('.controls');
+        if (controlsEl) controlsEl.classList.remove('is-disabled');
 
         if (!hasInitialOrbit) {
           syncOrbitFromCamera();
@@ -2717,6 +2860,17 @@
       }
       const deltaSeconds = Math.max(0, Math.min(0.1, (nowMs - lastAnimationTimeMs) / 1000));
       lastAnimationTimeMs = nowMs;
+
+      // FPS tracking (1-second rolling window)
+      fpsSampleFrames.push(nowMs);
+      while (fpsSampleFrames.length > 1 && fpsSampleFrames[0] < nowMs - 1000) {
+        fpsSampleFrames.shift();
+      }
+      if (debugVisible && nowMs - debugLastUpdateMs >= 1000) {
+        debugLastUpdateMs = nowMs;
+        updateDebugPanel(fpsSampleFrames.length);
+      }
+
       const isInVR = renderer.xr.isPresenting;
 
       if (!isInVR) {
@@ -2773,6 +2927,14 @@
         }
 
       }
+
+      // VR debug HUD – slightly towards top-left from bottom-right
+      vrDebugHudMesh.position.set(
+        winW / 2 - 0.35,
+        -winH / 2 + 0.14,
+        -FRAME_DIST + 0.01,
+      );
+      vrDebugHudMesh.visible = debugVisible;
 
       renderer.render(scene, camera);
     });
@@ -3831,6 +3993,11 @@
             <img alt="Scene preview" />
           </div>
           <canvas class="spark-canvas"></canvas>
+          <div class="debug-panel" hidden>
+            <div class="debug-row debug-fps">FPS: —</div>
+            <div class="debug-row debug-resolution">RES: —</div>
+            <div class="debug-row debug-fov">FOV: —</div>
+          </div>
         </div>
         <div class="controls">
           <div class="controls-left">
@@ -3861,6 +4028,7 @@
               <span class="fov-value">30°</span>
             </div>
             <button class="reset-button" data-i18n-key="spatialOn">Enable Spatial</button>
+            <button class="debug-button" type="button">Debug</button>
           </div>
         </div>
         <div class="author-credit author-credit-viewer">@author: Tao Hu  |  @version: v0.7.0</div>
