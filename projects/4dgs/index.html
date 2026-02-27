@@ -1612,13 +1612,6 @@
       xrPlaybackElapsedMs = 0;
     }
 
-    // Force XRWebGLLayer path (avoid XRProjectionLayer which causes black screen
-    // with reduced framebuffer scale on some devices).
-    if (typeof XRWebGLBinding !== 'undefined' && XRWebGLBinding.prototype.createProjectionLayer) {
-      delete XRWebGLBinding.prototype.createProjectionLayer;
-    }
-    renderer.xr.setFramebufferScaleFactor(1.0);
-
     renderer.xr.addEventListener('sessionstart', () => {
       if (vrButton) {
         vrButton.setAttribute('aria-label', t('exitVr'));
