@@ -573,6 +573,35 @@
       flex-shrink: 0;
     }
 
+    .controls .scene-nav-button {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      padding: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7em;
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.85);
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s ease, opacity 0.15s ease;
+    }
+
+    .controls .scene-nav-button.is-visible {
+      display: inline-flex;
+    }
+
+    .controls .scene-nav-button:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .controls .scene-nav-button:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+
     .controls .play-toggle {
       width: 40px;
       height: 40px;
@@ -1227,6 +1256,8 @@
         motionDenied: 'Motion Denied',
         enableMotion: 'Enable motion control',
         disableMotion: 'Disable motion control',
+        prevScene: 'Previous scene',
+        nextScene: 'Next scene',
       },
       zh: {
         heroTitle: 'PICO 6DoF 播放器',
@@ -1268,6 +1299,8 @@
         motionDenied: '体感被拒绝',
         enableMotion: '启用体感控制',
         disableMotion: '关闭体感控制',
+        prevScene: '上一个场景',
+        nextScene: '下一个场景',
       },
     };
 
@@ -2225,6 +2258,8 @@
     const fovSlider = document.querySelector('.fov-slider');
     const fovValue = document.querySelector('.fov-value');
     const controlsRightEl = document.querySelector('.controls-right');
+    const prevSceneBtn = document.querySelector('.prev-scene-button');
+    const nextSceneBtn = document.querySelector('.next-scene-button');
     const debugBtn = document.querySelector('.debug-button');
     const debugPanelEl = document.querySelector('.debug-panel');
     const debugFpsEl = debugPanelEl?.querySelector('.debug-fps');
@@ -3643,6 +3678,7 @@
       const activeRequestId = requestId ?? (++sceneSelectionRequestId);
       setSceneSwitching(true);
       selectedSceneDirectory = normalized;
+      updateSceneNavButtons();
       setViewerSceneTitle(getDirectoryDisplayName(normalized));
       if (urlDirSelectEl) {
         urlDirSelectEl.value = normalized;
@@ -3661,13 +3697,51 @@
       } finally {
         if (activeRequestId === sceneSelectionRequestId) {
           setSceneSwitching(false);
+          updateSceneNavButtons();
         }
       }
+    }
+
+    let sceneDirectoryList = [];
+
+    function updateSceneNavButtons() {
+      if (!prevSceneBtn || !nextSceneBtn) return;
+      const hasMultipleScenes = sceneDirectoryList.length > 1 && selectedSceneDirectory;
+      prevSceneBtn.classList.toggle('is-visible', hasMultipleScenes);
+      nextSceneBtn.classList.toggle('is-visible', hasMultipleScenes);
+      if (!hasMultipleScenes) return;
+      const idx = sceneDirectoryList.indexOf(selectedSceneDirectory);
+      prevSceneBtn.disabled = idx <= 0;
+      nextSceneBtn.disabled = idx >= sceneDirectoryList.length - 1 || idx < 0;
+      prevSceneBtn.setAttribute('aria-label', t('prevScene'));
+      prevSceneBtn.setAttribute('title', t('prevScene'));
+      nextSceneBtn.setAttribute('aria-label', t('nextScene'));
+      nextSceneBtn.setAttribute('title', t('nextScene'));
+    }
+
+    async function switchSceneByOffset(offset) {
+      if (sceneDirectoryList.length < 2 || !selectedSceneDirectory) return;
+      const idx = sceneDirectoryList.indexOf(selectedSceneDirectory);
+      const nextIdx = idx + offset;
+      if (nextIdx < 0 || nextIdx >= sceneDirectoryList.length) return;
+      const nextDir = sceneDirectoryList[nextIdx];
+      const candidates = getScenePreviewCandidatesForDirectory(nextDir);
+      await handleSceneSelection(nextDir, candidates);
+      updateSceneNavButtons();
+    }
+
+    if (prevSceneBtn) {
+      prevSceneBtn.addEventListener('click', () => switchSceneByOffset(-1));
+    }
+    if (nextSceneBtn) {
+      nextSceneBtn.addEventListener('click', () => switchSceneByOffset(1));
     }
 
     async function setScenePreviewCards(baseDir, directories) {
       if (!scenePreviewGridEl) return;
       if (!Array.isArray(directories) || directories.length === 0) {
+        sceneDirectoryList = [];
+        updateSceneNavButtons();
         setScenePreviewStatus(t('noScenePreviews'));
         return;
       }
@@ -3676,6 +3750,7 @@
       const catalog = await loadSceneCatalog();
       scenePreviewGridEl.innerHTML = '';
       scenePreviewByDirectory.clear();
+      sceneDirectoryList = directories.map(name => normalizeDirectoryUrl(`${normalizedBase}${name}/`));
 
       for (const name of directories) {
         const fullDir = normalizeDirectoryUrl(`${normalizedBase}${name}/`);
@@ -3739,6 +3814,7 @@
       }
 
       syncScenePreviewSelection();
+      updateSceneNavButtons();
     }
 
     async function discoverSubdirectories(dirUrl) {
@@ -4001,10 +4077,12 @@
         </div>
         <div class="controls">
           <div class="controls-left">
+            <button class="scene-nav-button prev-scene-button" type="button" aria-label="Previous scene" title="Previous scene">◀</button>
             <button class="play-button play-toggle" data-i18n-aria-label="play" aria-label="Play">
               <span class="play-icon" aria-hidden="true">▶</span>
               <span class="loading-spinner" aria-hidden="true"></span>
             </button>
+            <button class="scene-nav-button next-scene-button" type="button" aria-label="Next scene" title="Next scene">▶</button>
             <span class="caching-percent" aria-live="polite">0%</span>
           </div>
           <div class="progress-wrap">
