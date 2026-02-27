@@ -3710,9 +3710,8 @@
       prevSceneBtn.classList.toggle('is-visible', hasMultipleScenes);
       nextSceneBtn.classList.toggle('is-visible', hasMultipleScenes);
       if (!hasMultipleScenes) return;
-      const idx = sceneDirectoryList.indexOf(selectedSceneDirectory);
-      prevSceneBtn.disabled = idx <= 0;
-      nextSceneBtn.disabled = idx >= sceneDirectoryList.length - 1 || idx < 0;
+      prevSceneBtn.disabled = false;
+      nextSceneBtn.disabled = false;
       prevSceneBtn.setAttribute('aria-label', t('prevScene'));
       prevSceneBtn.setAttribute('title', t('prevScene'));
       nextSceneBtn.setAttribute('aria-label', t('nextScene'));
@@ -3722,8 +3721,7 @@
     async function switchSceneByOffset(offset) {
       if (sceneDirectoryList.length < 2 || !selectedSceneDirectory) return;
       const idx = sceneDirectoryList.indexOf(selectedSceneDirectory);
-      const nextIdx = idx + offset;
-      if (nextIdx < 0 || nextIdx >= sceneDirectoryList.length) return;
+      const nextIdx = ((idx + offset) % sceneDirectoryList.length + sceneDirectoryList.length) % sceneDirectoryList.length;
       const nextDir = sceneDirectoryList[nextIdx];
       const candidates = getScenePreviewCandidatesForDirectory(nextDir);
       await handleSceneSelection(nextDir, candidates);
