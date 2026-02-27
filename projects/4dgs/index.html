@@ -947,16 +947,17 @@
 
     @media (max-width: 1100px) {
       .controls {
-        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-columns: auto 1fr auto;
         grid-template-areas:
-          'left progress'
-          'right right';
+          'progress progress progress'
+          'left . right';
         gap: 8px 10px;
         padding: 8px 10px;
       }
 
       .controls .controls-left {
         grid-area: left;
+        justify-self: start;
       }
 
       .controls .progress-wrap {
@@ -965,16 +966,8 @@
 
       .controls .controls-right {
         grid-area: right;
-      }
-
-      .controls .controls-left {
-        justify-self: start;
-      }
-
-      .controls .controls-right {
-        width: 100%;
+        justify-content: flex-end;
         flex-wrap: wrap;
-        justify-content: space-evenly;
         gap: 10px 12px;
       }
 
@@ -1036,17 +1029,25 @@
       }
 
       .controls {
-        grid-template-columns: auto minmax(0, 1fr) auto;
-        grid-template-areas: 'left progress right';
+        grid-template-columns: auto 1fr auto;
+        grid-template-areas:
+          'progress progress progress'
+          'left . right';
         border-radius: 12px;
         padding: 8px;
         gap: 6px;
-        overflow-x: auto;
       }
 
       .controls .controls-left {
         grid-area: left;
         justify-content: flex-start;
+        gap: 4px;
+      }
+
+      .controls .scene-nav-button {
+        width: 26px;
+        height: 26px;
+        font-size: 0.6em;
       }
 
       .controls .play-toggle {
@@ -1061,6 +1062,10 @@
         flex-wrap: nowrap;
         justify-content: flex-end;
         gap: 6px;
+      }
+
+      .controls .progress-wrap {
+        grid-area: progress;
       }
 
       .controls button,
@@ -1099,15 +1104,9 @@
         font-size: 0.74em;
       }
 
-      .controls .fov-wrap {
-        flex: 1 1 100%;
-        justify-content: center;
-        gap: 6px;
-        padding: 4px 6px;
-      }
-
-      .controls .fov-slider {
-        width: min(140px, 42vw);
+      .controls .fov-wrap,
+      .controls .speed-select {
+        display: none;
       }
 
       .controls .time {
