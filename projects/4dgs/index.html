@@ -1384,6 +1384,54 @@
     const VR_MAX_WIN_W = 3.0;
     const VR_MIN_WIN_H = 0.5;
     const VR_MAX_WIN_H = 1.8;
+    const AVP_VR_WINDOW_Y_OFFSET = 1.2;
+    let isCurrentXrSessionAvp = false;
+
+    function sendClientLog(payload) {
+      fetch('/api/client-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {}),
+        keepalive: true,
+      }).catch(() => {
+      });
+    }
+
+    function isLikelyAppleVisionProSession(xrSession) {
+      const ua = navigator.userAgent || '';
+      const uaBrands = Array.isArray(navigator.userAgentData?.brands)
+        ? navigator.userAgentData.brands.map((entry) => entry?.brand || '').join(' ')
+        : '';
+      const hasVisionHint = /visionos|apple\s*vision\s*pro|\bvision\b/i.test(`${ua} ${uaBrands}`);
+      if (hasVisionHint) return true;
+
+      const isAppleBrowser = /apple/i.test(navigator.vendor || '');
+      const looksLikeVisionProSafariUa = /Macintosh/i.test(ua)
+        && /Version\/\d+/i.test(ua)
+        && /Safari\/605\.1\.15/i.test(ua)
+        && !/iPad|iPhone|iPod/i.test(ua);
+      if (isAppleBrowser && looksLikeVisionProSafariUa) return true;
+      if (!isAppleBrowser || !xrSession) return false;
+
+      const enabledFeatures = Array.isArray(xrSession.enabledFeatures) ? xrSession.enabledFeatures : [];
+      const looksLikeAvpFeatureSet = enabledFeatures.includes('local')
+        && enabledFeatures.includes('hand-tracking')
+        && !enabledFeatures.includes('local-floor');
+      if (looksLikeAvpFeatureSet) return true;
+
+      // AVP immersive sessions in Safari are world-space + alpha-blend.
+      return xrSession.interactionMode === 'world-space'
+        && xrSession.environmentBlendMode === 'alpha-blend';
+    }
+
+    function getVrWindowBaseYOffset() {
+      return isCurrentXrSessionAvp ? AVP_VR_WINDOW_Y_OFFSET : 0;
+    }
+
+    function getVrContentBaseYOffset() {
+      return isCurrentXrSessionAvp ? AVP_VR_WINDOW_Y_OFFSET : 0;
+    }
+
     // ── VR Window Frame (mask) ──
     // A large dark-gray plane with a transparent rounded-rect hole in the center.
     // Outside the hole = opaque dark matte (blocks rear texture), inside the hole = transparent (shows 3DGS).
@@ -1423,6 +1471,7 @@
     const vrBounds = new THREE.Box3();
     const vrSplatCenterWorld = new THREE.Vector3();
     const vrSplatCenterInFrame = new THREE.Vector3();
+    const vrSplatSize = new THREE.Vector3();
     const vrFrameRight = new THREE.Vector3();
     const vrFrameUp = new THREE.Vector3();
     const vrCorner = new THREE.Vector3();
@@ -1538,6 +1587,7 @@
       if (!loadedSplat) return;
       vrBounds.setFromObject(loadedSplat);
       if (vrBounds.isEmpty()) return;
+      vrBounds.getSize(vrSplatSize);
 
       vrBounds.getCenter(vrSplatCenterWorld);
       vrSplatCenterInFrame.copy(vrSplatCenterWorld);
@@ -1545,12 +1595,15 @@
 
       const dx = vrSplatCenterInFrame.x;
       const dy = vrSplatCenterInFrame.y;
-      if (Math.abs(dx) + Math.abs(dy) < 1e-6) return;
+      const avpSplatUpBias = isCurrentXrSessionAvp
+        ? THREE.MathUtils.clamp(vrSplatSize.y * 0.18, 0.08, 0.5)
+        : 0;
+      if (Math.abs(dx) + Math.abs(dy - avpSplatUpBias) < 1e-6) return;
 
       vrFrameRight.set(1, 0, 0).applyQuaternion(vrFrameGroup.quaternion);
       vrFrameUp.set(0, 1, 0).applyQuaternion(vrFrameGroup.quaternion);
       localFrame.position.addScaledVector(vrFrameRight, -dx);
-      localFrame.position.addScaledVector(vrFrameUp, -dy);
+      localFrame.position.addScaledVector(vrFrameUp, avpSplatUpBias - dy);
     }
 
     function fitVrWindowToSplat() {
@@ -1613,6 +1666,29 @@
     }
 
     renderer.xr.addEventListener('sessionstart', () => {
+      const xrSession = renderer.xr.getSession();
+      isCurrentXrSessionAvp = isLikelyAppleVisionProSession(xrSession);
+      const vrWindowBaseYOffset = getVrWindowBaseYOffset();
+      const vrContentBaseYOffset = getVrContentBaseYOffset();
+      sendClientLog({
+        type: 'xr-sessionstart',
+        timestamp: Date.now(),
+        isCurrentXrSessionAvp,
+        vrWindowBaseYOffset,
+        vrContentBaseYOffset,
+        userAgent: navigator.userAgent || '',
+        userAgentData: navigator.userAgentData || null,
+        platform: navigator.platform || '',
+        vendor: navigator.vendor || '',
+        xr: xrSession ? {
+          interactionMode: xrSession.interactionMode || null,
+          environmentBlendMode: xrSession.environmentBlendMode || null,
+          visibilityState: xrSession.visibilityState || null,
+          enabledFeatures: Array.isArray(xrSession.enabledFeatures)
+            ? xrSession.enabledFeatures
+            : null,
+        } : null,
+      });
       if (vrButton) {
         vrButton.setAttribute('aria-label', t('exitVr'));
         vrButton.setAttribute('title', t('exitVr'));
@@ -1621,9 +1697,9 @@
       vrFrameGroup.visible = true;
       vrWindowMask.visible = true;
       vrFrameInitialized = false;
-      vrFrameGroup.position.set(0, 0, 0);
+      vrFrameGroup.position.set(0, vrWindowBaseYOffset, 0);
       vrFrameGroup.rotation.set(0, 0, 0);
-      localFrame.position.set(0, 0, 0);
+      localFrame.position.set(0, vrContentBaseYOffset, 0);
       localFrame.rotation.set(0, 0, 0);
       localFrame.scale.set(1, 1, 1);
       drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
@@ -1642,6 +1718,7 @@
       localFrame.rotation.set(0, 0, 0);
       localFrame.scale.set(1, 1, 1);
       vrFrameInitialized = false;
+      isCurrentXrSessionAvp = false;
       pendingVrRefit = false;
       resetXrPlaybackClock();
       if (isPlaying) {
@@ -2295,8 +2372,44 @@
 
     // ── Debug panel ──────────────────────────────────────────────────────────
     let debugVisible = false;
-    const fpsSampleFrames = [];    // timestamps (ms) of recent frames
     let debugLastUpdateMs = -Infinity;
+    let debugSmoothedFps = null;
+    const debugRenderSize = new THREE.Vector2();
+
+    function getCurrentRenderResolution(isInVR) {
+      if (isInVR) {
+        const xrCam = renderer.xr.getCamera();
+        const xrViews = Array.isArray(xrCam?.cameras) ? xrCam.cameras : [];
+        const eyeViewports = xrViews
+          .map((eyeCam) => eyeCam?.viewport)
+          .filter((vp) => Number.isFinite(vp?.width) && Number.isFinite(vp?.height) && vp.width > 0 && vp.height > 0);
+        if (eyeViewports.length > 0) {
+          const totalW = Math.round(eyeViewports.reduce((sum, vp) => sum + vp.width, 0));
+          const totalH = Math.round(eyeViewports.reduce((maxH, vp) => Math.max(maxH, vp.height), 0));
+          const avgEyeW = Math.round(totalW / eyeViewports.length);
+          const avgEyeH = Math.round(eyeViewports.reduce((sum, vp) => sum + vp.height, 0) / eyeViewports.length);
+          const text = eyeViewports.length > 1
+            ? `${avgEyeW}×${avgEyeH} per-eye (total ${totalW}×${totalH})`
+            : `${avgEyeW}×${avgEyeH}`;
+          return { w: avgEyeW, h: avgEyeH, text };
+        }
+
+        const xrSession = renderer.xr.getSession();
+        const xrLayer = xrSession?.renderState?.baseLayer || null;
+        const fbWidth = Number(xrLayer?.framebufferWidth);
+        const fbHeight = Number(xrLayer?.framebufferHeight);
+        if (Number.isFinite(fbWidth) && Number.isFinite(fbHeight) && fbWidth > 0 && fbHeight > 0) {
+          const w = Math.round(fbWidth);
+          const h = Math.round(fbHeight);
+          return { w, h, text: `${w}×${h} layer` };
+        }
+      }
+
+      renderer.getDrawingBufferSize(debugRenderSize);
+      const w = Math.max(1, Math.round(debugRenderSize.x || renderer.domElement.width || 1));
+      const h = Math.max(1, Math.round(debugRenderSize.y || renderer.domElement.height || 1));
+      return { w, h, text: `${w}×${h}` };
+    }
 
     function updateDebugPanel(measuredFps) {
       if (!debugPanelEl) return;
@@ -2304,9 +2417,8 @@
 
       if (debugFpsEl) debugFpsEl.textContent = `FPS: ${measuredFps}`;
 
-      const w = renderer.domElement.width;
-      const h = renderer.domElement.height;
-      if (debugResEl) debugResEl.textContent = `RES: ${w}×${h}`;
+      const { w, h, text } = getCurrentRenderResolution(isInVR);
+      if (debugResEl) debugResEl.textContent = `RES: ${text}`;
 
       const sceneFov = Math.round(camera.fov);
       let fovText;
@@ -2569,10 +2681,10 @@
         const mesh = await ensureFrameMesh(currentIndex);
         if (!mesh) return;
 
+        mesh.visible = true;
         if (loadedSplat && loadedSplat !== mesh) {
           loadedSplat.visible = false;
         }
-        mesh.visible = true;
         loadedSplat = mesh;
         hideViewerPreviewOverlay();
         const controlsEl = document.querySelector('.controls');
@@ -2882,20 +2994,25 @@
 
     renderer.setAnimationLoop(function animate(timeMs) {
       const nowMs = Number.isFinite(timeMs) ? timeMs : performance.now();
+      let rawDeltaMs = 16.67;
       if (!Number.isFinite(lastAnimationTimeMs)) {
         lastAnimationTimeMs = nowMs;
+      } else {
+        rawDeltaMs = Math.max(1e-3, nowMs - lastAnimationTimeMs);
       }
-      const deltaSeconds = Math.max(0, Math.min(0.1, (nowMs - lastAnimationTimeMs) / 1000));
+      const deltaSeconds = Math.max(0, Math.min(0.1, rawDeltaMs / 1000));
       lastAnimationTimeMs = nowMs;
 
-      // FPS tracking (1-second rolling window)
-      fpsSampleFrames.push(nowMs);
-      while (fpsSampleFrames.length > 1 && fpsSampleFrames[0] < nowMs - 1000) {
-        fpsSampleFrames.shift();
+      const instantFps = 1000 / rawDeltaMs;
+      if (!Number.isFinite(debugSmoothedFps)) {
+        debugSmoothedFps = instantFps;
+      } else {
+        const fpsSmoothing = renderer.xr.isPresenting ? 0.2 : 0.15;
+        debugSmoothedFps += (instantFps - debugSmoothedFps) * fpsSmoothing;
       }
       if (debugVisible && nowMs - debugLastUpdateMs >= 1000) {
         debugLastUpdateMs = nowMs;
-        updateDebugPanel(fpsSampleFrames.length);
+        updateDebugPanel(Math.round(debugSmoothedFps));
       }
 
       const isInVR = renderer.xr.isPresenting;
@@ -2923,7 +3040,8 @@
         // Place window once when entering VR so the scene starts centered.
         // Keep the window plane fixed at world (0, 0, z).
         if (!vrFrameInitialized) {
-          vrFrameGroup.position.set(0, 0, 0);
+          vrFrameGroup.position.set(0, getVrWindowBaseYOffset(), 0);
+          localFrame.position.y = getVrContentBaseYOffset();
           vrFrameGroup.rotation.set(0, 0, 0);
           fitVrWindowToSplat();
           vrFrameInitialized = true;
@@ -3109,9 +3227,9 @@
       nextSplat.quaternion.set(1, 0, 0, 0);
       nextSplat.scale.setScalar(3);
       nextSplat.visible = false;
-      scene.add(nextSplat);
+      nextSplat.frustumCulled = false;
+      localFrame.add(nextSplat);
       await nextSplat.initialized;
-      nextSplat.visible = true;
       return nextSplat;
     }
 
@@ -3235,7 +3353,7 @@
       if (!frame?.mesh) return;
       const mesh = frame.mesh;
       mesh.visible = false;
-      scene.remove(mesh);
+      mesh.parent?.remove(mesh);
       if (typeof mesh.dispose === 'function') {
         mesh.dispose();
       }

@@ -67,9 +67,52 @@ async function buildScenesCatalog() {
   return { scenes };
 }
 
+function readRequestBody(req, maxBytes = 64 * 1024) {
+  return new Promise((resolve, reject) => {
+    let total = 0;
+    const chunks = [];
+
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(new Error('Request body too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on('end', () => {
+      resolve(Buffer.concat(chunks).toString('utf8'));
+    });
+
+    req.on('error', reject);
+  });
+}
+
 const requestHandler = async (req, res) => {
   try {
     const requestedPath = decodeURIComponent((req.url || '/').split('?')[0]);
+    const method = String(req.method || 'GET').toUpperCase();
+    const userAgent = String(req.headers['user-agent'] || '').slice(0, 300);
+    const forwardedFor = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const remoteAddr = forwardedFor || req.socket.remoteAddress || '-';
+
+    console.log(`[REQ] ${method} ${requestedPath} from ${remoteAddr} ua="${userAgent}"`);
+
+    if (requestedPath === '/api/client-log' && method === 'POST') {
+      const rawBody = await readRequestBody(req);
+      let payload = {};
+      try {
+        payload = rawBody ? JSON.parse(rawBody) : {};
+      } catch {
+        payload = { rawBody };
+      }
+      console.log('[CLIENT]', payload);
+      res.writeHead(204, { 'Cache-Control': 'no-store' });
+      res.end();
+      return;
+    }
 
     if (requestedPath === '/api/scenes') {
       const payload = await buildScenesCatalog();
