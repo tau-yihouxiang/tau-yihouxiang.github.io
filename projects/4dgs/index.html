@@ -1357,17 +1357,21 @@
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.01, 1000);
     camera.position.set(0, 0, 0);
-    const renderer = new THREE.WebGLRenderer({canvas: sparkCanvasEl});
+    const renderer = new THREE.WebGLRenderer({canvas: sparkCanvasEl, powerPreference: 'high-performance'});
     const frameEl = document.querySelector('.window-frame');
     const width = frameEl.clientWidth;
     const height = frameEl.clientHeight;
     renderer.setSize(width, height, false);
+    const XR_FRAMEBUFFER_SCALE_FACTOR = 4.0;
+    renderer.xr.setFramebufferScaleFactor(XR_FRAMEBUFFER_SCALE_FACTOR);
 
     // VR mode support
     const localFrame = new THREE.Group();
     scene.add(localFrame);
 
-    const spark = new SparkRenderer({ renderer, maxStdDev: Math.sqrt(5) });
+    const DESKTOP_MAX_STD_DEV = Math.sqrt(3);
+    const VR_MAX_STD_DEV = Math.sqrt(2);
+    const spark = new SparkRenderer({ renderer, maxStdDev: DESKTOP_MAX_STD_DEV });
     localFrame.add(spark);
     scene.add(camera);
 
@@ -1435,8 +1439,8 @@
     // ── VR Window Frame (mask) ──
     // A large dark-gray plane with a transparent rounded-rect hole in the center.
     // Outside the hole = opaque dark matte (blocks rear texture), inside the hole = transparent (shows 3DGS).
-    const MASK_CANVAS_W = 3200, MASK_CANVAS_H = 2000;
-    const MASK_PLANE_W = 10.0, MASK_PLANE_H = 6.25;  // plane world size (matches canvas aspect 1600:1000)
+    const MASK_CANVAS_W = 1600, MASK_CANVAS_H = 1000;
+    const MASK_PLANE_W = 5.0, MASK_PLANE_H = 3.125;  // plane world size (matches canvas aspect 1600:1000)
 
     const maskCanvas = document.createElement('canvas');
     maskCanvas.width = MASK_CANVAS_W;
@@ -1446,12 +1450,11 @@
     const maskTexture = new THREE.CanvasTexture(maskCanvas);
     maskTexture.minFilter = THREE.LinearFilter;
     maskTexture.magFilter = THREE.LinearFilter;
-    maskTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     maskTexture.generateMipmaps = false;
     const maskMaterial = new THREE.MeshBasicMaterial({
       map: maskTexture,
       transparent: true,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       depthTest: false,
       depthWrite: false,
     });
@@ -1476,7 +1479,7 @@
     const vrFrameUp = new THREE.Vector3();
     const vrCorner = new THREE.Vector3();
 
-    const FRAME_DIST = 2.0;
+    const FRAME_DIST = 1.7;
     vrWindowMask.position.set(0, 0, -FRAME_DIST);
     vrFrameGroup.add(vrWindowMask);
 
@@ -1506,7 +1509,7 @@
 
       // 1) Fill canvas with opaque dark matte to fully block rear texture bleed in VR
       maskCtx.clearRect(0, 0, MASK_CANVAS_W, MASK_CANVAS_H);
-      maskCtx.fillStyle = 'rgba(16, 16, 18, 1)';
+      maskCtx.fillStyle = 'rgba(0, 0, 0, 1)';
       maskCtx.fillRect(0, 0, MASK_CANVAS_W, MASK_CANVAS_H);
 
       // 2) Cut out a transparent rounded-rect hole in the center
@@ -1521,15 +1524,6 @@
       maskCtx.lineWidth = 3 * (MASK_CANVAS_W / 1600);
       roundRect(maskCtx, holeX, holeY, holePixW, holePixH, holeRad);
       maskCtx.stroke();
-
-      // 4) Outer shadow / vignette around the hole
-      maskCtx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-      maskCtx.shadowBlur = 30 * (MASK_CANVAS_W / 1600);
-      maskCtx.strokeStyle = 'rgba(0,0,0,0)';
-      maskCtx.lineWidth = 1;
-      roundRect(maskCtx, holeX - 1, holeY - 1, holePixW + 2, holePixH + 2, holeRad);
-      maskCtx.stroke();
-      maskCtx.shadowBlur = 0;
 
       maskTexture.needsUpdate = true;
 
@@ -1554,7 +1548,7 @@
         transparent: true,
         depthTest: false,
         depthWrite: false,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide,
       }),
     );
     vrDebugHudMesh.renderOrder = 9999;
@@ -1693,6 +1687,8 @@
         vrButton.setAttribute('aria-label', t('exitVr'));
         vrButton.setAttribute('title', t('exitVr'));
       }
+      spark.maxStdDev = VR_MAX_STD_DEV;
+      renderer.xr.setFoveation(1.0);
       if (debugVisible) debugLastUpdateMs = -Infinity; // force immediate HUD draw
       vrFrameGroup.visible = true;
       vrWindowMask.visible = true;
@@ -1712,6 +1708,7 @@
         vrButton.setAttribute('aria-label', t('enterVr'));
         vrButton.setAttribute('title', t('enterVr'));
       }
+      spark.maxStdDev = DESKTOP_MAX_STD_DEV;
       vrDebugHudMesh.visible = false;
       vrFrameGroup.visible = false;
       localFrame.position.set(0, 0, 0);
@@ -3049,7 +3046,6 @@
         }
 
         if (isPlaying && frames.length > 0 && !isCaching) {
-          const nowMs = Number.isFinite(timeMs) ? timeMs : performance.now();
           if (!xrPlaybackClockInitialized) {
             xrPlaybackClockInitialized = true;
             xrPlaybackLastTimestamp = nowMs;
@@ -3073,13 +3069,16 @@
 
       }
 
-      // VR debug HUD – slightly towards top-left from bottom-right
-      vrDebugHudMesh.position.set(
-        winW / 2 - 0.35,
-        -winH / 2 + 0.14,
-        -FRAME_DIST + 0.01,
-      );
-      vrDebugHudMesh.visible = debugVisible;
+      if (isInVR && debugVisible) {
+        vrDebugHudMesh.position.set(
+          winW / 2 - 0.35,
+          -winH / 2 + 0.14,
+          -FRAME_DIST + 0.01,
+        );
+        vrDebugHudMesh.visible = true;
+      } else {
+        vrDebugHudMesh.visible = false;
+      }
 
       renderer.render(scene, camera);
     });
