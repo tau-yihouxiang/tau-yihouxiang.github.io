@@ -1380,7 +1380,7 @@
       optionalFeatures: ["hand-tracking"],
     });
 
-    const DEFAULT_WIN_W = 1.9008, DEFAULT_WIN_H = 1.0692;  // window opening in world meters
+    const DEFAULT_WIN_W = 1.61568, DEFAULT_WIN_H = 0.90882;  // window opening in world meters (-15%)
     let winW = DEFAULT_WIN_W;
     let winH = DEFAULT_WIN_H;
     const VR_TARGET_VISIBLE_AREA = 0.8;
@@ -1481,6 +1481,21 @@
     const vrCorner = new THREE.Vector3();
 
     const FRAME_DIST = 1.5;
+    const vrWindowWhiteBoard = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({
+        color: 0x1a1a1a,
+        side: THREE.FrontSide,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    vrWindowWhiteBoard.renderOrder = 9997;
+    vrWindowWhiteBoard.frustumCulled = false;
+    vrWindowWhiteBoard.visible = false;
+    vrWindowWhiteBoard.position.set(0, 0, -FRAME_DIST - 0.001);
+    vrFrameGroup.add(vrWindowWhiteBoard);
+
     vrWindowMask.position.set(0, 0, -FRAME_DIST);
     vrFrameGroup.add(vrWindowMask);
 
@@ -1501,6 +1516,7 @@
     function drawVrWindowMask(openW, openH) {
       winW = Math.max(VR_MIN_WIN_W, Math.min(VR_MAX_WIN_W, Number(openW) || DEFAULT_WIN_W));
       winH = Math.max(VR_MIN_WIN_H, Math.min(VR_MAX_WIN_H, Number(openH) || DEFAULT_WIN_H));
+      vrWindowWhiteBoard.scale.set(winW, winH, 1);
 
       const holePixW = (winW / MASK_PLANE_W) * MASK_CANVAS_W;
       const holePixH = (winH / MASK_PLANE_H) * MASK_CANVAS_H;
@@ -1693,6 +1709,7 @@
       renderer.xr.setFoveation(1.0);
       if (debugVisible) debugLastUpdateMs = -Infinity; // force immediate HUD draw
       vrFrameGroup.visible = true;
+      vrWindowWhiteBoard.visible = true;
       vrWindowMask.visible = true;
       vrFrameInitialized = false;
       vrFrameGroup.position.set(0, vrWindowBaseYOffset, 0);
@@ -1713,6 +1730,7 @@
       spark.maxStdDev = DESKTOP_MAX_STD_DEV;
       vrDebugHudMesh.visible = false;
       vrFrameGroup.visible = false;
+      vrWindowWhiteBoard.visible = false;
       localFrame.position.set(0, 0, 0);
       localFrame.rotation.set(0, 0, 0);
       localFrame.scale.set(1, 1, 1);
