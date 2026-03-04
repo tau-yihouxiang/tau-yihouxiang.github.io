@@ -1557,7 +1557,8 @@
     vrFrameGroup.add(vrDebugHudMesh);
 
     function drawVrDebugHud(fps, resW, resH, fovText) {
-      const ctx = vrDebugCanjnvas.getContext('2d');
+      const ctx = vrDebugCanvas.getContext('2d');
+      if (!ctx) return;
       const cw = VR_HUD_CW;
       const ch = VR_HUD_CH;
       ctx.clearRect(0, 0, cw, ch);
@@ -2410,8 +2411,8 @@
     }
 
     function updateDebugPanel(measuredFps) {
-      if (!debugPanelEl) return;
       const isInVR = renderer.xr.isPresenting;
+      if (!debugPanelEl && !isInVR) return;
 
       if (debugFpsEl) debugFpsEl.textContent = `FPS: ${measuredFps}`;
 
@@ -2423,9 +2424,15 @@
       if (isInVR) {
         const xrCam = renderer.xr.getCamera();
         if (xrCam && xrCam.cameras && xrCam.cameras.length > 0) {
-          const m = xrCam.cameras[0].projectionMatrix.elements;
-          const hmdFovV = Math.round(2 * Math.atan(1 / Math.abs(m[5])) * 180 / Math.PI);
-          fovText = `FOV: ${sceneFov}° / HMD: ${hmdFovV}°`;
+          const firstEyeCam = xrCam.cameras[0];
+          const m = firstEyeCam?.projectionMatrix?.elements;
+          const m11 = Number(m?.[5]);
+          if (Number.isFinite(m11) && Math.abs(m11) > 1e-6) {
+            const hmdFovV = Math.round(2 * Math.atan(1 / Math.abs(m11)) * 180 / Math.PI);
+            fovText = `FOV: ${sceneFov}° / HMD: ${hmdFovV}°`;
+          } else {
+            fovText = `FOV: ${sceneFov}°`;
+          }
         } else {
           fovText = `FOV: ${sceneFov}°`;
         }
@@ -3010,7 +3017,11 @@
       }
       if (debugVisible && nowMs - debugLastUpdateMs >= 1000) {
         debugLastUpdateMs = nowMs;
-        updateDebugPanel(Math.round(debugSmoothedFps));
+        try {
+          updateDebugPanel(Math.round(debugSmoothedFps));
+        } catch (error) {
+          console.warn('Debug panel update failed, skip this frame:', error);
+        }
       }
 
       const isInVR = renderer.xr.isPresenting;
