@@ -1308,6 +1308,7 @@
       '动物世界': { zh: '动物世界', en: 'Animal World' },
       '少年派': { zh: '少年派', en: 'Life of Pi' },
       '直播美女': { zh: '直播美女', en: 'Live Beauty' },
+      '网课': { zh: '网课', en: 'Online Class' },
     };
 
     function t(key, vars = {}) {
@@ -1556,7 +1557,7 @@
     vrFrameGroup.add(vrDebugHudMesh);
 
     function drawVrDebugHud(fps, resW, resH, fovText) {
-      const ctx = vrDebugCanvas.getContext('2d');
+      const ctx = vrDebugCanjnvas.getContext('2d');
       const cw = VR_HUD_CW;
       const ch = VR_HUD_CH;
       ctx.clearRect(0, 0, cw, ch);
@@ -3928,7 +3929,7 @@
       const normalized = normalizeDirectoryUrl(dirUrl);
       if (normalized !== '/') return [];
       const catalog = await loadSceneCatalog();
-      return Object.keys(catalog).sort();
+      return Object.keys(catalog);
     }
 
     function setDirectoryOptions(baseDir, directories) {

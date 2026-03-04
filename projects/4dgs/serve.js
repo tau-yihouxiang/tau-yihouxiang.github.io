@@ -29,6 +29,17 @@ function isSceneFile(fileName) {
 }
 
 async function buildScenesCatalog() {
+  const staticCatalogPath = path.join(root, 'api', 'scenes');
+  try {
+    const raw = await fs.readFile(staticCatalogPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed?.scenes && typeof parsed.scenes === 'object') {
+      return parsed;
+    }
+  } catch {
+    // fall through to dynamic scan
+  }
+
   const scenes = {};
   const publicRoot = path.join(root, 'public');
 
