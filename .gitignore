@@ -1,1 +1,4 @@
 .DS_Store
+projects/4dgs/node_modules/
+projects/4dgs/rad-debug.log
+projects/4dgs/rad-debug-output.json

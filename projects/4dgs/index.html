@@ -881,6 +881,20 @@
       background-color: rgb(90, 90, 90);
     }
 
+    .controls .controls-right > .music-button.is-inactive,
+    .controls .controls-right > .reset-button.is-inactive,
+    .controls .controls-right > .debug-button.is-inactive {
+      background-color: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    .controls .controls-right > .music-button.is-inactive:hover,
+    .controls .controls-right > .reset-button.is-inactive:hover,
+    .controls .controls-right > .debug-button.is-inactive:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.7);
+    }
+
     .controls select {
       background: rgba(255, 255, 255, 0.12);
       color: #fff;
@@ -893,6 +907,7 @@
 
     .controls .controls-right > .speed-select,
     .controls .controls-right > .import-button,
+    .controls .controls-right > .music-button,
     .controls .controls-right > .reset-button,
     .controls .controls-right > .debug-button,
     .controls .controls-right > #VRButton {
@@ -910,6 +925,8 @@
 
     .controls .controls-right > .speed-select {
       width: 80px;
+      max-width: 80px;
+      box-sizing: border-box;
       text-align: center;
       text-align-last: center;
       -moz-text-align-last: center;
@@ -995,6 +1012,35 @@
       }
     }
 
+    @media (max-width: 1100px) {
+      .controls .controls-right {
+        gap: 6px 6px;
+      }
+
+      /* Keep playback speed readable but significantly narrower. */
+      .controls .controls-right > .speed-select {
+        flex: 0 0 42px !important;
+        min-width: 42px !important;
+        width: 42px !important;
+        max-width: 42px !important;
+        padding: 0 3px !important;
+        font-size: 0.7em;
+      }
+
+      .controls .controls-right > .music-button,
+      .controls .controls-right > .reset-button,
+      .controls .controls-right > .debug-button,
+      .controls .controls-right > #VRButton {
+        min-width: 60px;
+        padding: 0 3px;
+        font-size: 0.7em;
+      }
+
+      .controls .controls-right > #VRButton {
+        min-width: 60px !important;
+      }
+    }
+
     @media (max-width: 760px) {
       .drop-container {
         padding-left: 12px;
@@ -1076,21 +1122,38 @@
 
       .controls .controls-right > .speed-select,
       .controls .controls-right > .import-button,
+      .controls .controls-right > .music-button,
       .controls .controls-right > .reset-button,
       .controls .controls-right > .debug-button,
       .controls .controls-right > #VRButton {
         flex: 0 0 auto;
-        min-width: 64px;
+        min-width: 60px;
         width: auto;
         height: 28px;
-        padding: 0 6px;
+        padding: 0 4px;
+      }
+
+      .controls .controls-right > .music-button,
+      .controls .controls-right > .reset-button,
+      .controls .controls-right > .debug-button,
+      .controls .controls-right > #VRButton {
+        font-size: 0.68em;
       }
 
       .controls .controls-right > #VRButton {
-        min-width: 64px !important;
+        min-width: 60px !important;
         width: auto !important;
         height: 28px !important;
-        padding: 0 6px !important;
+        padding: 0 4px !important;
+      }
+
+      .controls .controls-right > .speed-select {
+        flex: 0 0 42px !important;
+        min-width: 42px !important;
+        width: 42px !important;
+        max-width: 42px !important;
+        padding: 0 3px !important;
+        font-size: 0.68em;
       }
 
       .controls .progress-wrap {
@@ -1161,17 +1224,26 @@
 
       .controls .controls-right > .speed-select,
       .controls .controls-right > .import-button,
+      .controls .controls-right > .music-button,
       .controls .controls-right > .reset-button,
       .controls .controls-right > .debug-button,
       .controls .controls-right > #VRButton {
         flex: 0 0 auto;
-        width: auto;
-        min-width: 68px;
+        min-width: 60px;
+      }
+
+      .controls .controls-right > .speed-select {
+        flex: 0 0 42px !important;
+        min-width: 42px !important;
+        width: 42px !important;
+        max-width: 42px !important;
+        padding: 0 3px !important;
+        font-size: 0.68em;
       }
 
       .controls .controls-right > #VRButton {
         width: auto !important;
-        min-width: 68px !important;
+        min-width: 60px !important;
       }
     }
   </style>
@@ -1180,15 +1252,15 @@
   <script type="importmap">
     {
       "imports": {
-        "three": "./vendor/three/build/three.module.js",
-        "three/addons/": "./vendor/three/examples/jsm/",
-        "@sparkjsdev/spark": "./dist/spark.module.js"
+        "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.180.0/three.module.js",
+        "three/addons/": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.180.0/examples/jsm/",
+        "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/preview/2.0.0/spark.module.js"
       }
     }
   </script>
   <script type="module">
     import * as THREE from "three";
-    import { SplatMesh, SparkControls, SparkRenderer, VRButton } from "@sparkjsdev/spark";
+    import { SplatMesh, SparkControls, SparkRenderer, SparkXr } from "@sparkjsdev/spark";
 
     const LANG_STORAGE_KEY = 'pico-ui-language';
 
@@ -1226,6 +1298,7 @@
         longFrames: 'Long (All Frames)',
         import: 'Import',
         reset: 'Recenter',
+        spatialLabel: 'Spatial',
         spatialOn: 'Enable Spatial',
         spatialOff: 'Disable Spatial',
         play: 'Play',
@@ -1257,6 +1330,11 @@
         disableMotion: 'Disable motion control',
         prevScene: 'Previous scene',
         nextScene: 'Next scene',
+        debugLabel: 'Debug',
+        musicLabel: 'Music',
+        musicOn: 'Music On',
+        musicOff: 'Music Off',
+        musicUnavailable: 'No Music',
       },
       zh: {
         heroTitle: 'PICO 6DoF 播放器',
@@ -1269,6 +1347,7 @@
         longFrames: '长（全部帧）',
         import: '导入',
         reset: '回中',
+        spatialLabel: '空间',
         spatialOn: '开启空间',
         spatialOff: '关闭空间',
         play: '播放',
@@ -1300,6 +1379,11 @@
         disableMotion: '关闭体感控制',
         prevScene: '上一个场景',
         nextScene: '下一个场景',
+        debugLabel: '调试',
+        musicLabel: '音乐',
+        musicOn: '音乐开',
+        musicOff: '音乐关',
+        musicUnavailable: '无音乐',
       },
     };
 
@@ -1376,8 +1460,21 @@
     localFrame.add(spark);
     scene.add(camera);
 
-    const vrButton = VRButton.createButton(renderer, {
-      optionalFeatures: ["hand-tracking"],
+    const vrButton = document.createElement('button');
+    vrButton.id = 'VRButton';
+
+    new SparkXr({
+      renderer,
+      element: vrButton,
+      mode: 'vr',
+      frameBufferScaleFactor: XR_FRAMEBUFFER_SCALE_FACTOR,
+      sessionInit: {
+        optionalFeatures: ['hand-tracking'],
+      },
+      button: {
+        enterVrText: t('enterVr'),
+        exitVrText: t('exitVr'),
+      },
     });
 
     const DEFAULT_WIN_W = 1.61568, DEFAULT_WIN_H = 0.90882;  // window opening in world meters (-15%)
@@ -2335,6 +2432,7 @@
     const timeCurrentEl = document.querySelector('.time-current');
     const timeTotalEl = document.querySelector('.time-total');
     const speedSelect = document.querySelector('.speed-select');
+    const musicBtn = document.querySelector('.music-button');
     const resetBtn = document.querySelector('.reset-button');
     const viewerCloseBtn = document.querySelector('.viewer-close-button');
     const sceneTitleOverlayEl = document.querySelector('.scene-title-overlay');
@@ -2463,9 +2561,15 @@
     }
 
     if (debugBtn) {
+      const debugLabel = t('debugLabel');
+      debugBtn.textContent = debugLabel;
+      debugBtn.setAttribute('aria-label', debugLabel);
+      debugBtn.setAttribute('title', debugLabel);
+      debugBtn.classList.add('is-inactive');
       debugBtn.addEventListener('click', () => {
         debugVisible = !debugVisible;
         debugBtn.classList.toggle('is-active', debugVisible);
+        debugBtn.classList.toggle('is-inactive', !debugVisible);
         if (debugPanelEl) debugPanelEl.hidden = !debugVisible;
         if (debugVisible) {
           debugLastUpdateMs = -Infinity; // force immediate update
@@ -2477,10 +2581,142 @@
     function updateSpatialToggleButtonUI() {
       if (!resetBtn) return;
       const isOn = motionState.enabled;
-      const key = isOn ? 'spatialOff' : 'spatialOn';
-      resetBtn.textContent = t(key);
-      resetBtn.setAttribute('aria-label', t(key));
-      resetBtn.setAttribute('title', t(key));
+      const label = t('spatialLabel');
+      resetBtn.textContent = label;
+      resetBtn.setAttribute('aria-label', label);
+      resetBtn.setAttribute('title', label);
+      resetBtn.classList.toggle('is-inactive', !isOn);
+    }
+
+    const SCENE_MUSIC_FILE_BY_NAME = {
+      '网课': './public/audio/online-class.mp3',
+      '仓大佬跳舞': './public/audio/cang-dance.mp3',
+      '动物世界': './public/audio/animal-world.mp3',
+      '少年派': './public/audio/life-of-pi.mp3',
+      '直播美女': './public/audio/live-beauty.mp3',
+    };
+    const BG_MUSIC_URL_CANDIDATES = [
+      './public/audio/bg-music.mp3',
+      './public/audio/background.mp3',
+    ];
+    const BG_MUSIC_VOLUME = 0.28;
+    const audioListener = new THREE.AudioListener();
+    camera.add(audioListener);
+    const backgroundMusic = new THREE.Audio(audioListener);
+    backgroundMusic.setLoop(true);
+    backgroundMusic.setVolume(BG_MUSIC_VOLUME);
+    const audioLoader = new THREE.AudioLoader();
+    let isMusicEnabled = true;
+    let backgroundMusicReady = false;
+    let backgroundMusicLoadPromise = null;
+    let backgroundMusicLoadFailed = false;
+    let currentMusicUrl = '';
+    let activeSceneMusicCandidates = [...BG_MUSIC_URL_CANDIDATES];
+    const musicBufferCache = new Map();
+
+    function getSceneNameFromDirectory(dirUrl) {
+      const normalized = normalizeDirectoryUrl(dirUrl);
+      const parts = normalized.split('/').filter(Boolean);
+      return parts[parts.length - 1] || '';
+    }
+
+    function buildMusicCandidatesForScene(sceneName) {
+      const candidates = [];
+      const sceneMusic = SCENE_MUSIC_FILE_BY_NAME[sceneName];
+      if (sceneMusic) candidates.push(sceneMusic);
+      for (const fallbackUrl of BG_MUSIC_URL_CANDIDATES) {
+        if (!candidates.includes(fallbackUrl)) candidates.push(fallbackUrl);
+      }
+      return candidates;
+    }
+
+    function applySceneMusicByDirectory(dirUrl) {
+      const sceneName = getSceneNameFromDirectory(dirUrl);
+      const nextCandidates = buildMusicCandidatesForScene(sceneName);
+      const sameList = nextCandidates.length === activeSceneMusicCandidates.length
+        && nextCandidates.every((url, idx) => url === activeSceneMusicCandidates[idx]);
+      if (sameList) return;
+      if (currentMusicUrl && nextCandidates[0] === currentMusicUrl) {
+        activeSceneMusicCandidates = nextCandidates;
+        return;
+      }
+      activeSceneMusicCandidates = nextCandidates;
+      backgroundMusicReady = false;
+      backgroundMusicLoadFailed = false;
+      backgroundMusicLoadPromise = null;
+      currentMusicUrl = '';
+      if (backgroundMusic.isPlaying) {
+        backgroundMusic.stop();
+      }
+      updateMusicButtonUI();
+    }
+
+    function updateMusicButtonUI() {
+      if (!musicBtn) return;
+      const label = t('musicLabel');
+      musicBtn.textContent = label;
+      musicBtn.setAttribute('aria-label', label);
+      musicBtn.setAttribute('title', label);
+      musicBtn.classList.toggle('is-inactive', !isMusicEnabled);
+    }
+
+    async function ensureBackgroundMusicReady() {
+      if (backgroundMusicReady) return true;
+      if (backgroundMusicLoadFailed) return false;
+      if (backgroundMusicLoadPromise) return backgroundMusicLoadPromise;
+      backgroundMusicLoadPromise = (async () => {
+        for (const url of activeSceneMusicCandidates) {
+          try {
+            let buffer = musicBufferCache.get(url);
+            if (!buffer) {
+              buffer = await new Promise((resolve, reject) => {
+                audioLoader.load(url, resolve, undefined, reject);
+              });
+              musicBufferCache.set(url, buffer);
+            }
+            backgroundMusic.setBuffer(buffer);
+            backgroundMusicReady = true;
+            backgroundMusicLoadFailed = false;
+            currentMusicUrl = url;
+            updateMusicButtonUI();
+            return true;
+          } catch {
+            // Try the next fallback URL.
+          }
+        }
+        backgroundMusicLoadFailed = true;
+        isMusicEnabled = false;
+        updateMusicButtonUI();
+        console.warn('Background music not found. Add scene mp3 files under ./public/audio/');
+        return false;
+      })();
+      try {
+        return await backgroundMusicLoadPromise;
+      } finally {
+        backgroundMusicLoadPromise = null;
+      }
+    }
+
+    function pauseBackgroundMusic() {
+      if (backgroundMusic.isPlaying) {
+        backgroundMusic.pause();
+      }
+    }
+
+    async function syncBackgroundMusicWithPlayback() {
+      if (!isMusicEnabled || !isPlaying) {
+        pauseBackgroundMusic();
+        return;
+      }
+      const ready = await ensureBackgroundMusicReady();
+      if (!ready) return;
+      try {
+        await audioListener.context.resume();
+      } catch {
+      }
+      if (!backgroundMusic.isPlaying) {
+        backgroundMusic.play();
+      }
     }
 
     async function toggleSpatialFromButton() {
@@ -2502,6 +2738,25 @@
     }
 
     updateSpatialToggleButtonUI();
+    updateMusicButtonUI();
+
+    if (musicBtn) {
+      musicBtn.addEventListener('click', async () => {
+        if (!backgroundMusicReady && !isMusicEnabled) {
+          const loaded = await ensureBackgroundMusicReady();
+          if (!loaded) return;
+          isMusicEnabled = true;
+        } else {
+          isMusicEnabled = !isMusicEnabled;
+        }
+        updateMusicButtonUI();
+        if (isMusicEnabled) {
+          await syncBackgroundMusicWithPlayback();
+        } else {
+          pauseBackgroundMusic();
+        }
+      });
+    }
 
     function updateFov(value) {
       const nextFov = Math.min(90, Math.max(10, Number(value)));
@@ -2619,6 +2874,7 @@
         urlDirSelectEl.value = '';
       }
       selectedSceneDirectory = '';
+      applySceneMusicByDirectory('');
       setCacheButtonState({
         label: cacheButtonIdleLabel,
         progress: 0,
@@ -2784,9 +3040,11 @@
           return;
         }
         startPlayback();
+        void syncBackgroundMusicWithPlayback();
       } else {
         stopPlayback();
         resetXrPlaybackClock();
+        pauseBackgroundMusic();
       }
     }
 
@@ -3232,6 +3490,7 @@
     }
 
     async function loadSplatFiles(files) {
+      applySceneMusicByDirectory('');
       const ordered = sortFilesByName(files);
       const loadedFrames = limitFrames(ordered.map((f) => ({
         name: f.name,
@@ -3476,6 +3735,7 @@
 
 
     async function loadSplatURL(splatURL) {
+      applySceneMusicByDirectory('');
       const fileName = splatURL.split("/").pop().split("?")[0];
       await switchToFrameList([
         {
@@ -3817,6 +4077,7 @@
       const activeRequestId = requestId ?? (++sceneSelectionRequestId);
       setSceneSwitching(true);
       selectedSceneDirectory = normalized;
+      applySceneMusicByDirectory(normalized);
       updateSceneNavButtons();
       setViewerSceneTitle(getDirectoryDisplayName(normalized));
       if (urlDirSelectEl) {
@@ -3958,7 +4219,13 @@
       const normalized = normalizeDirectoryUrl(dirUrl);
       if (normalized !== '/') return [];
       const catalog = await loadSceneCatalog();
-      return Object.keys(catalog);
+      const sceneNames = Object.keys(catalog);
+      const pinnedScene = '网课';
+      return sceneNames.sort((a, b) => {
+        if (a === pinnedScene && b !== pinnedScene) return -1;
+        if (b === pinnedScene && a !== pinnedScene) return 1;
+        return 0;
+      });
     }
 
     function setDirectoryOptions(baseDir, directories) {
@@ -4242,8 +4509,9 @@
               <input class="fov-slider" type="range" min="10" max="90" step="1" value="30" />
               <span class="fov-value">30°</span>
             </div>
-            <button class="reset-button" data-i18n-key="spatialOn">Enable Spatial</button>
-            <button class="debug-button" type="button">Debug</button>
+            <button class="music-button" type="button" data-i18n-key="musicLabel">Music</button>
+            <button class="reset-button" data-i18n-key="spatialLabel">Spatial</button>
+            <button class="debug-button" type="button" data-i18n-key="debugLabel">Debug</button>
           </div>
         </div>
         <div class="author-credit author-credit-viewer">@author: Tao Hu  |  @version: v0.7.0</div>
