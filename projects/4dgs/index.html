@@ -1462,6 +1462,7 @@
 
     const vrButton = document.createElement('button');
     vrButton.id = 'VRButton';
+    vrButton.style.display = 'none';
 
     new SparkXr({
       renderer,
@@ -1474,6 +1475,10 @@
       button: {
         enterVrText: t('enterVr'),
         exitVrText: t('exitVr'),
+      },
+      onReady: (supported) => {
+        vrButton.style.display = supported ? '' : 'none';
+        vrButton.setAttribute('aria-hidden', supported ? 'false' : 'true');
       },
     });
 
