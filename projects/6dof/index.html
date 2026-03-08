@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PICO 6DoF</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; color: #fff; background: rgb(56, 56, 62); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+    .container { display: flex; align-items: center; width: 100%; height: 100vh; background-color: rgb(43, 41, 40); margin: 0; padding: 0; position: relative; z-index: 3; }
+    .drop-container { width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .viewer-canvas { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    .invisible { display: none; }
+    .canvas-container { position: fixed; inset: 0; background: rgb(56, 56, 62); z-index: 2; }
+    .logo { position: absolute; top: clamp(4px, 1vw, 10px); left: clamp(4px, 1vw, 10px); z-index: 2; background: rgba(255,255,255,0.2); padding: clamp(4px,0.9vw,6px) clamp(6px,1.2vw,8px); border-radius: clamp(8px,1.4vw,10px); box-shadow: 0 6px 16px rgba(0,0,0,0.25); backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%); border: 1px solid rgba(255,255,255,0.25); }
+    .logo img { width: clamp(52px,9vw,80px); max-width: 24vw; height: auto; display: block; }
+    .scene-title-overlay { position: absolute; top: clamp(4px,1vw,10px); left: 50%; transform: translateX(-50%); z-index: 2; max-width: min(70vw,680px); padding: 6px 12px; border-radius: 10px; background: rgba(20,20,20,0.5); border: 1px solid rgba(255,255,255,0.18); color: rgba(255,255,255,0.94); font-size: clamp(0.75rem,1.4vw,0.9rem); line-height: 1.2; text-align: center; white-space: normal; overflow-wrap: anywhere; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); pointer-events: none; opacity: 0; visibility: hidden; transition: opacity 0.15s ease; }
+    .scene-title-overlay.has-text { opacity: 1; visibility: visible; }
+    .viewer-close-button { position: absolute; top: clamp(4px,1vw,10px); right: clamp(4px,1vw,10px); z-index: 2; width: clamp(28px,3.2vw,34px); height: clamp(28px,3.2vw,34px); border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; background: rgba(20,20,20,0.58); color: rgba(255,255,255,0.95); font-size: clamp(0.92rem,2vw,1.1rem); line-height: 1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+    .viewer-close-button:hover { background: rgba(42,42,42,0.75); }
+    .debug-panel { position: absolute; bottom: clamp(6px,1.2vw,10px); right: clamp(6px,1.2vw,10px); z-index: 3; background: rgba(10,10,10,0.72); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 7px 10px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); pointer-events: none; font-size: 0.72rem; font-family: ui-monospace, 'Courier New', monospace; color: rgba(255,255,255,0.9); line-height: 1.7; text-shadow: 0 1px 3px rgba(0,0,0,0.8); min-width: 148px; }
+    .controls .debug-button.is-active { background: rgba(255,255,255,0.22) !important; color: #fff !important; }
+    .hero-logo { text-align: center; margin-bottom: 2rem; }
+    .hero-title { margin: 0 0 1.5rem 0; font-size: clamp(1.45rem,2.8vw,2.2rem); font-weight: 700; letter-spacing: 0.01em; color: rgba(255,255,255,0.95); text-align: center; text-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+    .hero-logo img { width: 350px; height: auto; margin-bottom: 1rem; }
+    .url-select, .frame-limit-select, .drop-zone { width: 100%; max-width: 300px; margin: 0.5rem auto; padding: 0.75rem; border-radius: 6px; font-size: 0.7rem; text-align: center; }
+    .drop-zone { max-width: 760px; padding-top: 4rem; padding-bottom: 4rem; }
+    .url-select { background-color: rgb(47,47,47); border: none; color: #fff; text-align: center; cursor: pointer; font-family: system-ui, sans-serif; font-size: 0.7rem; font-weight: 400; appearance: none; -webkit-appearance: none; text-align-last: center; -moz-text-align-last: center; display: block; }
+    .url-form { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .language-row { width: 100%; max-width: 760px; margin: 0.2rem auto 0.45rem auto; display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 0 4px; box-sizing: border-box; }
+    .language-group { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+    .language-label { font-size: 0.72rem; color: rgba(255,255,255,0.8); font-weight: 500; white-space: nowrap; }
+    .language-select { width: auto; min-width: 108px; max-width: 160px; margin: 0; padding: 0.45rem 0.65rem; font-size: 0.72rem; border-radius: 8px; text-align-last: center; -moz-text-align-last: center; }
+    .url-row { width: 100%; max-width: 760px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0.5rem auto; }
+    .url-row .url-select, .url-row .frame-limit-wrap, .url-row .cache-all-button { width: 100%; max-width: none; margin: 0; }
+    .scene-preview-grid { width: 100%; max-width: 760px; margin: 0.35rem auto 0.5rem auto; display: flex; flex-wrap: nowrap; gap: 10px; overflow-x: auto; overflow-y: hidden; padding-top: 2px; padding-bottom: 4px; scroll-behavior: smooth; }
+    .scene-preview-status { width: 100%; border-radius: 10px; border: 1px dashed rgba(255,255,255,0.18); background: rgba(47,47,47,0.78); color: rgba(255,255,255,0.7); font-size: 0.72rem; text-align: center; padding: 0.85rem 0.7rem; }
+    .scene-card { border: 1px solid rgba(255,255,255,0.14); background: rgba(47,47,47,0.95); border-radius: 10px; padding: 8px; cursor: pointer; text-align: left; color: #fff; display: flex; flex-direction: column; gap: 8px; flex: 0 0 180px; transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease; }
+    .scene-card:hover { background: rgb(58,58,58); border-color: rgba(255,255,255,0.38); transform: translateY(-1px); }
+    .scene-card.is-selected { border-color: rgba(122,205,152,0.95); box-shadow: 0 0 0 1px rgba(122,205,152,0.35) inset; }
+    .scene-card.is-loading { opacity: 0.78; cursor: default; }
+    .scene-card-thumb { width: 100%; aspect-ratio: 16/9; border-radius: 7px; overflow: hidden; background: rgb(35,35,35); border: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center; }
+    .scene-card-thumb img { width: 100%; height: 100%; display: block; object-fit: cover; }
+    .scene-card-thumb-fallback { font-size: 0.68rem; color: rgba(255,255,255,0.5); letter-spacing: 0.02em; }
+    .scene-card-title { font-size: 0.74rem; line-height: 1.25; color: rgba(255,255,255,0.92); text-align: center; word-break: break-word; }
+    .frame-limit-wrap { display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 6px; background-color: rgb(47,47,47); color: #fff; font-family: system-ui, sans-serif; font-size: 0.7rem; font-weight: 400; overflow: hidden; }
+    .frame-limit-select { background-color: transparent; border: none; color: #fff; font-family: system-ui, sans-serif; font-size: 0.7rem; font-weight: 400; display: block; width: 100%; text-align: center; text-align-last: center; -moz-text-align-last: center; padding: 0.75rem; margin: 0; outline: none; cursor: pointer; appearance: none; -webkit-appearance: none; }
+    .cache-all-button { width: 100%; max-width: 760px; margin: 0.5rem auto 0.25rem auto; padding: 0.75rem; border: none; border-radius: 6px; background-color: rgb(60,60,60); color: #fff; font-size: 0.7rem; cursor: pointer; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; text-align: center; }
+    .url-row .cache-all-button { height: 100%; min-height: 42px; margin: 0; max-width: none; padding: 0.75rem 0.6rem; border-radius: 6px; }
+    .cache-all-progress { position: absolute; inset: 0; width: 0%; background: rgba(255,255,255,0.18); transition: width 0.18s ease; pointer-events: none; }
+    .cache-all-button.is-caching .cache-all-progress { background-image: linear-gradient(120deg,rgba(255,255,255,0.12) 0%,rgba(255,255,255,0.28) 35%,rgba(255,255,255,0.12) 70%); background-size: 200% 100%; animation: cacheProgressSweep 1s linear infinite; }
+    @keyframes cacheProgressSweep { from { background-position: 200% 0; } to { background-position: 0 0; } }
+    .cache-all-label { position: relative; z-index: 1; }
+    .cache-all-label-text { display: inline; }
+    .cache-all-label-dots { display: inline-block; width: 1.6em; text-align: left; }
+    .cache-all-button:hover { background-color: rgb(90,90,90); }
+    .cache-all-button:disabled { opacity: 0.7; cursor: default; }
+    .drop-zone { border: 1px dashed #666; color: rgb(89,89,89); background-color: rgb(47,47,47); cursor: pointer; }
+    .drop-zone.dragover { border: 1px dashed #aaa; color: rgb(170,170,170); }
+    @media (min-width: 600px) { .url-select, .frame-limit-wrap, .frame-limit-select, .drop-zone { font-size: 0.77rem; } .cache-all-button { font-size: 0.77rem; } }
+    .hidden { display: none; }
+    .author-credit { margin-top: 10px; font-size: 0.76rem; color: rgba(255,255,255,0.68); line-height: 1.2; letter-spacing: 0.01em; text-align: center; user-select: none; }
+    .author-credit-viewer { width: 100%; text-shadow: 0 1px 6px rgba(0,0,0,0.35); }
+    .author-credit-import { margin-top: 12px; }
+    .controls { position: relative; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 8px 12px; background: rgba(28,28,28,0.7); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); backdrop-filter: blur(8px); z-index: 2; width: 100%; pointer-events: auto; transition: opacity 0.3s ease; }
+    .controls.is-disabled { opacity: 0.35; pointer-events: none; }
+    .controls .controls-left, .controls .controls-right { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .controls .controls-right { min-width: 0; flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+    .controls .controls-right > * { flex-shrink: 0; }
+    .controls .scene-nav-button { width: 30px; height: 30px; border-radius: 50%; padding: 0; display: none; align-items: center; justify-content: center; font-size: 0.7em; background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85); border: none; cursor: pointer; transition: background 0.15s ease, opacity 0.15s ease; }
+    .controls .scene-nav-button.is-visible { display: inline-flex; }
+    .controls .scene-nav-button:hover { background: rgba(255,255,255,0.25); }
+    .controls .scene-nav-button:disabled { opacity: 0.3; cursor: default; }
+    .controls .play-toggle { width: 40px; height: 40px; border-radius: 50%; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 1.1em; background: rgba(255,255,255,0.15); }
+    .controls .caching-percent { display: none; min-width: 44px; font-size: 0.8em; color: rgba(255,255,255,0.8); font-variant-numeric: tabular-nums; text-align: left; }
+    .controls .caching-percent.is-visible { display: inline-block; }
+    .controls .play-toggle.is-loading { cursor: default; opacity: 0.7; }
+    .controls .play-toggle .loading-spinner { display: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; animation: spin 0.9s linear infinite; }
+    .controls .play-toggle.is-loading .play-icon { display: none; }
+    .controls .play-toggle.is-loading .loading-spinner { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .controls .play-toggle .play-icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; position: relative; color: transparent; font-size: 0; line-height: 0; }
+    .controls .play-toggle .play-icon::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-42%,-50%); width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 10px solid #fff; }
+    .controls .play-toggle.is-playing .play-icon::before, .controls .play-toggle.is-playing .play-icon::after { content: ''; position: absolute; top: 50%; width: 4px; height: 12px; border-radius: 1px; background: #fff; transform: translateY(-50%); }
+    .controls .play-toggle.is-playing .play-icon::before { left: 4px; border: none; }
+    .controls .play-toggle.is-playing .play-icon::after { right: 4px; }
+    .controls .progress-wrap { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; width: 100%; min-width: 0; }
+    .controls .fov-wrap { display: none; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 10px; background: rgba(255,255,255,0.08); }
+    .controls .fov-label { font-size: 0.8em; color: rgba(255,255,255,0.7); white-space: nowrap; }
+    .controls .fov-value { min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; color: rgba(255,255,255,0.85); font-size: 0.85em; }
+    .controls .fov-slider { width: 90px; accent-color: #fff; }
+    .controls .time { font-size: 0.82em; color: rgba(255,255,255,0.7); min-width: 44px; text-align: center; }
+    .controls .progress { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 999px; background: rgba(255,255,255,0.15); outline: none; }
+    .controls .progress::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 4px rgba(255,255,255,0.15); cursor: pointer; }
+    .controls .progress::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: none; cursor: pointer; }
+    .viewer-window { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1; pointer-events: none; --viewer-window-padding: clamp(12px,2vw,28px); padding: var(--viewer-window-padding); }
+    .viewer-window .viewer-stack { width: min(92vw,1220px,calc(min(86dvh,760px)*16/9)); display: flex; flex-direction: column; align-items: center; gap: 14px; margin: auto; max-height: calc(100dvh - (var(--viewer-window-padding)*2)); pointer-events: auto; }
+    .viewer-window .window-frame { position: relative; width: 100%; aspect-ratio: 16/9; height: auto; background: #111; border: 3px solid rgba(180,180,180,0.75); border-radius: clamp(16px,2.2vw,28px); overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,0.55); pointer-events: auto; }
+    .viewer-preview-overlay { position: absolute; inset: 0; z-index: 1; display: none; pointer-events: none; background: rgb(17,17,17); }
+    .viewer-preview-overlay.is-visible { display: block; }
+    .viewer-preview-overlay img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .controls-right #VRButton { position: static !important; left: auto !important; bottom: auto !important; width: auto !important; min-width: 80px; padding: 0 6px !important; border: none !important; border-radius: 10px !important; background-color: rgba(255,255,255,0.12) !important; opacity: 1 !important; font-size: 0 !important; line-height: 1; height: 30px !important; display: inline-flex; align-items: center; justify-content: center; text-align: center; box-shadow: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+    .controls-right #VRButton:hover { background-color: rgb(90,90,90) !important; }
+    .controls-right #VRButton::before { content: 'VR'; font-size: 0.95rem; font-weight: 600; line-height: 1; letter-spacing: 0.02em; }
+    .controls button { background-color: rgba(255,255,255,0.12); border: none; color: #fff; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 0.9em; }
+    .controls button:hover { background-color: rgb(90,90,90); }
+    .controls .controls-right > .music-button.is-inactive, .controls .controls-right > .reset-button.is-inactive, .controls .controls-right > .debug-button.is-inactive { background-color: rgba(255,255,255,0.06); color: rgba(255,255,255,0.55); }
+    .controls .controls-right > .music-button.is-inactive:hover, .controls .controls-right > .reset-button.is-inactive:hover, .controls .controls-right > .debug-button.is-inactive:hover { background-color: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); }
+    .controls select { background: rgba(255,255,255,0.12); color: #fff; border: none; border-radius: 8px; padding: 6px 10px; font-size: 0.85em; cursor: pointer; }
+    .controls .controls-right > .speed-select, .controls .controls-right > .import-button, .controls .controls-right > .music-button, .controls .controls-right > .reset-button, .controls .controls-right > .debug-button, .controls .controls-right > #VRButton { min-width: 80px; height: 30px; padding: 0 6px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; text-align: center; font-size: 0.74em; }
+    .controls .controls-right > .speed-select { width: 80px; max-width: 80px; box-sizing: border-box; text-align: center; text-align-last: center; -moz-text-align-last: center; }
+    .frame-indicator { font-size: 0.85em; color: rgba(255,255,255,0.65); padding: 0 6px; white-space: nowrap; }
+    .frame-indicator-progress { display: none; min-width: 52px; text-align: right; padding-right: 0; }
+    @media (orientation: landscape) and (max-height: 520px) {
+      .viewer-window { --viewer-window-padding: clamp(6px,1.2vh,10px); }
+      .viewer-window .viewer-stack { width: min(96vw,1220px,calc((100dvh - (var(--viewer-window-padding)*2) - 72px)*16/9)); gap: 8px; }
+      .controls { padding: 6px 8px; gap: 6px; }
+    }
+    @media (max-width: 1100px) {
+      .controls { grid-template-columns: auto 1fr auto; grid-template-areas: 'progress progress progress' 'left . right'; gap: 8px 10px; padding: 8px 10px; }
+      .controls .controls-left { grid-area: left; justify-self: start; }
+      .controls .progress-wrap { grid-area: progress; width: 100%; min-width: 0; grid-template-columns: auto minmax(0,1fr) auto auto; }
+      .controls .controls-right { grid-area: right; justify-content: flex-end; flex-wrap: wrap; gap: 10px 12px; }
+      .controls .frame-indicator-progress { display: inline-block; font-size: 0.82em; }
+      .controls .frame-indicator-actions { display: none; }
+      .controls .time { min-width: 54px; }
+      .controls .fov-slider { width: min(120px,22vw); }
+      .controls .controls-right { gap: 6px 6px; }
+      .controls .controls-right > .speed-select { flex: 0 0 42px !important; min-width: 42px !important; width: 42px !important; max-width: 42px !important; padding: 0 3px !important; font-size: 0.7em; }
+      .controls .controls-right > .music-button, .controls .controls-right > .reset-button, .controls .controls-right > .debug-button, .controls .controls-right > #VRButton { min-width: 60px; padding: 0 3px; font-size: 0.7em; }
+      .controls .controls-right > #VRButton { min-width: 60px !important; }
+    }
+    @media (max-width: 760px) {
+      .drop-container { padding-left: 12px; padding-right: 12px; }
+      .url-row, .language-row, .scene-preview-grid, .cache-all-button, .drop-zone { max-width: 100%; }
+      .scene-card { flex-basis: 168px; }
+      .language-row { gap: 8px; padding: 0 2px; justify-content: flex-end; }
+      .language-group { gap: 6px; }
+      .language-select { min-width: 92px; padding: 0.4rem 0.55rem; }
+      .controls { grid-template-columns: auto 1fr auto; grid-template-areas: 'progress progress progress' 'left . right'; border-radius: 12px; padding: 8px; gap: 6px; }
+      .controls .controls-left { grid-area: left; justify-content: flex-start; gap: 4px; }
+      .controls .scene-nav-button { width: 26px; height: 26px; font-size: 0.6em; }
+      .controls .play-toggle { width: 36px; height: 36px; }
+      .controls .controls-right { grid-area: right; width: auto; display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: 6px; }
+      .controls .progress-wrap { grid-area: progress; }
+      .controls button, .controls select { font-size: 0.82em; padding: 5px 10px; }
+      .controls .controls-right > .speed-select, .controls .controls-right > .import-button, .controls .controls-right > .music-button, .controls .controls-right > .reset-button, .controls .controls-right > .debug-button, .controls .controls-right > #VRButton { flex: 0 0 auto; min-width: 60px; width: auto; height: 28px; padding: 0 4px; }
+      .controls .controls-right > .music-button, .controls .controls-right > .reset-button, .controls .controls-right > .debug-button, .controls .controls-right > #VRButton { font-size: 0.68em; }
+      .controls .controls-right > #VRButton { min-width: 60px !important; width: auto !important; height: 28px !important; padding: 0 4px !important; }
+      .controls .controls-right > .speed-select { flex: 0 0 42px !important; min-width: 42px !important; width: 42px !important; max-width: 42px !important; padding: 0 3px !important; font-size: 0.68em; }
+      .controls .progress-wrap { grid-template-columns: max-content minmax(0,1fr) max-content max-content; gap: 4px; }
+      .controls .frame-indicator-progress { min-width: 0; padding: 0; font-size: 0.74em; }
+      .controls .fov-wrap, .controls .speed-select { display: none; }
+      .controls .time { min-width: 0; font-size: 0.76em; }
+      .scene-title-overlay { max-width: calc(100% - 128px); padding: 5px 9px; font-size: 0.74rem; }
+      .logo { transform: scale(0.7); transform-origin: top left; }
+      .scene-title-overlay { transform: translateX(-50%) scale(0.7); transform-origin: top center; }
+      .viewer-close-button { transform: scale(0.7); transform-origin: top right; }
+    }
+    @media (orientation: landscape) and (max-height: 520px) and (max-width: 900px) {
+      .controls { grid-template-columns: auto minmax(0,1fr) auto; grid-template-areas: 'left progress right'; align-items: center; }
+      .controls .controls-left { grid-area: left; }
+      .controls .progress-wrap { grid-area: progress; }
+      .controls .controls-right { grid-area: right; width: auto; flex-wrap: nowrap; justify-content: flex-end; gap: 6px; }
+      .controls .controls-right > .speed-select, .controls .controls-right > .import-button, .controls .controls-right > .music-button, .controls .controls-right > .reset-button, .controls .controls-right > .debug-button, .controls .controls-right > #VRButton { flex: 0 0 auto; min-width: 60px; }
+      .controls .controls-right > .speed-select { flex: 0 0 42px !important; min-width: 42px !important; width: 42px !important; max-width: 42px !important; padding: 0 3px !important; font-size: 0.68em; }
+      .controls .controls-right > #VRButton { width: auto !important; min-width: 60px !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="canvas-container invisible">
+    <div class="viewer-window">
+      <div class="viewer-stack">
+        <div class="window-frame">
+          <div class="logo"><img src="./pico-logo.png" alt="PICO Logo" /></div>
+          <div class="scene-title-overlay" aria-live="polite"></div>
+          <button class="viewer-close-button" type="button" aria-label="Close">✕</button>
+          <div class="viewer-preview-overlay" aria-hidden="true"><img alt="Scene preview" /></div>
+          <canvas class="viewer-canvas"></canvas>
+          <div class="debug-panel" hidden>
+            <div class="debug-row debug-fps">FPS: —</div>
+            <div class="debug-row debug-resolution">RES: —</div>
+            <div class="debug-row debug-fov">FOV: —</div>
+          </div>
+        </div>
+        <div class="controls">
+          <div class="controls-left">
+            <button class="scene-nav-button prev-scene-button" type="button" aria-label="Previous scene" title="Previous scene">◀</button>
+            <button class="play-button play-toggle" data-i18n-aria-label="play" aria-label="Play">
+              <span class="play-icon" aria-hidden="true">▶</span>
+              <span class="loading-spinner" aria-hidden="true"></span>
+            </button>
+            <button class="scene-nav-button next-scene-button" type="button" aria-label="Next scene" title="Next scene">▶</button>
+            <span class="caching-percent" aria-live="polite">0%</span>
+          </div>
+          <div class="progress-wrap">
+            <span class="time time-current">00:00</span>
+            <input class="progress" type="range" min="0" max="0" step="1" value="0" />
+            <span class="time time-total">00:00</span>
+            <span class="frame-indicator frame-indicator-progress">0/0</span>
+          </div>
+          <div class="controls-right">
+            <span class="frame-indicator frame-indicator-actions">0/0</span>
+            <select class="speed-select">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2x</option>
+              <option value="3">3x</option>
+            </select>
+            <div class="fov-wrap">
+              <span class="fov-label">FOV</span>
+              <input class="fov-slider" type="range" min="10" max="90" step="1" value="30" />
+              <span class="fov-value">30°</span>
+            </div>
+            <button class="music-button" type="button" data-i18n-key="musicLabel">Music</button>
+            <button class="reset-button" data-i18n-key="spatialLabel">Spatial</button>
+            <button class="debug-button" type="button" data-i18n-key="debugLabel">Debug</button>
+          </div>
+        </div>
+        <div class="author-credit author-credit-viewer">@author: Tao Hu | @version: v0.8.0 (SuperSplat)</div>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <div class="drop-container">
+      <h1 class="hero-title" data-i18n-key="heroTitle">Pico 6DoF Player</h1>
+      <div class="hero-logo"><a href="./"><img src="./pico-viewer.png" alt="Pico Viewer Logo" /></a></div>
+      <div class="language-row">
+        <div class="language-group">
+          <span class="language-label" data-i18n-key="language">Language</span>
+          <select class="url-select language-select" aria-label="Language">
+            <option value="zh" data-i18n-key="langZh">中文</option>
+            <option value="en" data-i18n-key="langEn">English</option>
+          </select>
+        </div>
+      </div>
+      <div class="drop-zone" data-i18n-key="dragDrop">Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat) here</div>
+      <input id="file-input" class="hidden" accept=".ply,.spz,.splat,.ksplat,.sog" type="file" multiple />
+      <form class="url-form">
+        <div class="scene-preview-grid" aria-live="polite"></div>
+        <div class="url-row">
+          <div class="frame-limit-wrap" data-i18n-title="frameRange" title="Frame range">
+            <select class="frame-limit-select" data-i18n-aria-label="frameRange" aria-label="Frame range">
+              <option value="short" data-i18n-key="shortFrames" selected>Short (16 Frames)</option>
+              <option value="medium" data-i18n-key="mediumFrames">Medium (32 Frames)</option>
+              <option value="long" data-i18n-key="longFrames">Long (All Frames)</option>
+            </select>
+          </div>
+          <button type="button" class="cache-all-button">
+            <span class="cache-all-progress" aria-hidden="true"></span>
+            <span class="cache-all-label" data-i18n-key="cache">Cache</span>
+          </button>
+        </div>
+      </form>
+      <div class="author-credit author-credit-import">@author: Tao Hu | @version: v0.8.0 (SuperSplat)</div>
+    </div>
+  </div>
+
+  <script src="./playcanvas.min.js"></script>
+  <script type="module">
+    // ═══════════════════════════════════════════════════════════════════════
+    // PICO 6DoF Player — SuperSplat / PlayCanvas Engine
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ── i18n ──────────────────────────────────────────────────────────────
+    const LANG_STORAGE_KEY = 'pico-ui-language';
+    function normalizeLanguageCode(raw) { const v = String(raw || '').trim().toLowerCase(); if (v.startsWith('zh')) return 'zh'; if (v.startsWith('en')) return 'en'; return ''; }
+    function resolveUiLanguage() {
+      const urlLang = normalizeLanguageCode(new URLSearchParams(window.location.search).get('lang'));
+      if (urlLang) return urlLang;
+      try { const stored = normalizeLanguageCode(localStorage.getItem(LANG_STORAGE_KEY)); if (stored) return stored; } catch {}
+      return normalizeLanguageCode(navigator.language || 'en') || 'en';
+    }
+    const UI_LANG = resolveUiLanguage();
+    document.documentElement.lang = UI_LANG === 'zh' ? 'zh-CN' : 'en';
+    const I18N_TEXT = {
+      en: { heroTitle:'PICO 6DoF Player', dragDrop:'Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat) here', shortFrames:'Short (16 Frames)', mediumFrames:'Medium (32 Frames)', longFrames:'Long (All Frames)', reset:'Recenter', spatialLabel:'Spatial', play:'Play', pause:'Pause', enterVr:'Enter VR', exitVr:'Exit VR', loadingScenePreviews:'Loading scene previews...', scenePreviewsUnavailable:'Scene previews unavailable', noScenePreviews:'No scene previews found', noPreview:'No preview', cache:'Cache All', noScenesFound:'No scenes found', cachingProgress:'Caching {done}/{total}', cachedProgress:'Cached {done}/{total}', noSplatFilesAtUrl:'No splat files found', failedToLoadScene:'Failed to load scene: {message}', language:'Language', langZh:'中文', langEn:'English', prevScene:'Previous scene', nextScene:'Next scene', debugLabel:'Debug', musicLabel:'Music', selectFolder:'Select folder...', loadingFolders:'Loading folders...', folderUnavailable:'Folder list unavailable', noFolders:'No folders', frameRange:'Frame range' },
+      zh: { heroTitle:'PICO 6DoF 播放器', dragDrop:'将 splat (.ply, .sog, .spz, .splat, .ksplat) 拖拽到这里', shortFrames:'短（16 帧）', mediumFrames:'中（32 帧）', longFrames:'长（全部帧）', reset:'回中', spatialLabel:'空间', play:'播放', pause:'暂停', enterVr:'进入 VR', exitVr:'退出 VR', loadingScenePreviews:'正在加载预览...', scenePreviewsUnavailable:'场景预览不可用', noScenePreviews:'暂无场景预览', noPreview:'暂无预览', cache:'缓存所有', noScenesFound:'未找到场景', cachingProgress:'缓存中 {done}/{total}', cachedProgress:'已缓存 {done}/{total}', noSplatFilesAtUrl:'未找到 splat 文件', failedToLoadScene:'场景加载失败：{message}', language:'语言', langZh:'中文', langEn:'English', prevScene:'上一个场景', nextScene:'下一个场景', debugLabel:'调试', musicLabel:'音乐', selectFolder:'选择场景...', loadingFolders:'正在加载场景...', folderUnavailable:'场景列表不可用', noFolders:'暂无场景', frameRange:'帧范围' },
+    };
+    const SCENE_NAME_I18N = { '仓大佬跳舞':{ zh:'仓大佬跳舞', en:'Cang Dance' }, '动物世界':{ zh:'动物世界', en:'Animal World' }, '少年派':{ zh:'少年派', en:'Life of Pi' }, '直播美女':{ zh:'直播美女', en:'Live Beauty' }, '网课':{ zh:'网课', en:'Online Class' } };
+    function t(key, vars = {}) { const table = I18N_TEXT[UI_LANG] || I18N_TEXT.en; const fb = I18N_TEXT.en; const tpl = table[key] ?? fb[key] ?? key; return String(tpl).replace(/\{(\w+)\}/g, (_, tok) => Object.hasOwn(vars, tok) ? String(vars[tok]) : `{${tok}}`); }
+    function localizeSceneName(raw) { const k = String(raw||'').trim(); if (!k) return ''; const e = SCENE_NAME_I18N[k]; return e ? (e[UI_LANG]||e.en||k) : k; }
+    function applyStaticI18n() {
+      document.querySelectorAll('[data-i18n-key]').forEach(el => { const k = el.dataset.i18nKey; if (k) el.textContent = t(k); });
+      document.querySelectorAll('[data-i18n-aria-label]').forEach(el => { const k = el.dataset.i18nAriaLabel; if (k) el.setAttribute('aria-label', t(k)); });
+      document.querySelectorAll('[data-i18n-title]').forEach(el => { const k = el.dataset.i18nTitle; if (k) el.setAttribute('title', t(k)); });
+    }
+
+    function isSogFile(fileName) {
+      return String(fileName || '').toLowerCase().endsWith('.sog');
+    }
+
+    // ── VR Framebuffer Scale ──────────────────────────────────────────────
+    const VR_FB_SCALE = 1.0;
+    if (typeof XRWebGLLayer !== 'undefined') {
+      const _OrigXRWebGLLayer = XRWebGLLayer;
+      window.XRWebGLLayer = function(session, ctx, opts = {}) {
+        opts.framebufferScaleFactor = VR_FB_SCALE;
+        return new _OrigXRWebGLLayer(session, ctx, opts);
+      };
+      window.XRWebGLLayer.prototype = _OrigXRWebGLLayer.prototype;
+      window.XRWebGLLayer.getNativeFramebufferScaleFactor = _OrigXRWebGLLayer.getNativeFramebufferScaleFactor;
+    }
+
+    // ── PlayCanvas Engine Setup ──────────────────────────────────────────
+    const canvasEl = document.querySelector('.viewer-canvas');
+    const frameEl = document.querySelector('.window-frame');
+
+    const app = new pc.Application(canvasEl, {
+      mouse: new pc.Mouse(canvasEl),
+      touch: new pc.TouchDevice(canvasEl),
+      keyboard: new pc.Keyboard(window),
+      graphicsDeviceOptions: { alpha: false, powerPreference: 'high-performance' },
+    });
+
+    app.setCanvasFillMode(pc.FILLMODE_NONE);
+    app.setCanvasResolution(pc.RESOLUTION_AUTO);
+    app.autoRender = false;
+    app.resizeCanvas(1, 1);
+
+    const cameraEntity = new pc.Entity('camera');
+    cameraEntity.addComponent('camera', {
+      fov: 30,
+      nearClip: 0.01,
+      farClip: 1000,
+      clearColor: new pc.Color(0, 0, 0),
+    });
+    app.root.addChild(cameraEntity);
+    cameraEntity.setPosition(0, 0, 0.1);
+    cameraEntity.lookAt(0, 0, 0);
+
+    const localFrame = new pc.Entity('localFrame');
+    app.root.addChild(localFrame);
+
+    // ── VR Window Frame ────────────────────────────────────────────────
+    const VR_FRAME_DIST = 1.5;
+    const VR_ASPECT = 16 / 9;
+    const VR_DEFAULT_WIN_W = 0.84, VR_DEFAULT_WIN_H = 0.84 / VR_ASPECT;
+    const VR_MIN_WIN_W = 0.5, VR_MAX_WIN_W = 1.7;
+    const VR_MASK_CW = 1600, VR_MASK_CH = 900;
+    const VR_MASK_PLANE_W = 5.0, VR_MASK_PLANE_H = 5.0 / VR_ASPECT;
+    let vrWinW = VR_DEFAULT_WIN_W, vrWinH = VR_DEFAULT_WIN_H;
+
+    let savedLocalFramePos = new pc.Vec3();
+    let vrFrameInitialized = false;
+    let vrInitWaitFrames = 0;
+    let pendingVrRefit = false;
+
+    const vrFrameGroup = new pc.Entity('vrFrameGroup');
+    vrFrameGroup.enabled = false;
+    app.root.addChild(vrFrameGroup);
+
+    const vrBackground = new pc.Entity('vrBackground');
+    vrBackground.addComponent('render', { type: 'plane' });
+    vrBackground.setLocalEulerAngles(90, 0, 0);
+    vrBackground.setLocalPosition(0, 0, -VR_FRAME_DIST - 0.001);
+    vrBackground.setLocalScale(VR_DEFAULT_WIN_W, 1, VR_DEFAULT_WIN_H);
+    const vrBgMat = new pc.StandardMaterial();
+    vrBgMat.diffuse = new pc.Color(0, 0, 0);
+    vrBgMat.emissive = new pc.Color(0, 0, 0);
+    vrBgMat.useLighting = false;
+    vrBgMat.depthTest = false;
+    vrBgMat.depthWrite = false;
+    vrBgMat.cull = pc.CULLFACE_NONE;
+    vrBgMat.update();
+    vrBackground.render.meshInstances.forEach(mi => { mi.material = vrBgMat; mi.drawOrder = 9997; });
+    vrFrameGroup.addChild(vrBackground);
+
+    const vrMaskCanvas = document.createElement('canvas');
+    vrMaskCanvas.width = VR_MASK_CW;
+    vrMaskCanvas.height = VR_MASK_CH;
+    const vrMaskCtx = vrMaskCanvas.getContext('2d');
+
+    const vrMaskTexture = new pc.Texture(app.graphicsDevice, {
+      width: VR_MASK_CW, height: VR_MASK_CH,
+      format: pc.PIXELFORMAT_RGBA8, mipmaps: false,
+      minFilter: pc.FILTER_LINEAR, magFilter: pc.FILTER_LINEAR,
+    });
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function drawVrMask(openW) {
+      vrWinW = Math.max(VR_MIN_WIN_W, Math.min(VR_MAX_WIN_W, Number(openW) || VR_DEFAULT_WIN_W));
+      vrWinH = vrWinW / VR_ASPECT;
+      vrBackground.setLocalScale(vrWinW, 1, vrWinH);
+
+      const holePixW = (vrWinW / VR_MASK_PLANE_W) * VR_MASK_CW;
+      const holePixH = (vrWinH / VR_MASK_PLANE_H) * VR_MASK_CH;
+      const holeX = (VR_MASK_CW - holePixW) / 2;
+      const holeY = (VR_MASK_CH - holePixH) / 2;
+      const holeRad = Math.max(20, Math.min(120, Math.min(holePixW, holePixH) * 0.12));
+
+      vrMaskCtx.clearRect(0, 0, VR_MASK_CW, VR_MASK_CH);
+      vrMaskCtx.fillStyle = 'rgba(0, 0, 0, 1)';
+      vrMaskCtx.fillRect(0, 0, VR_MASK_CW, VR_MASK_CH);
+
+      vrMaskCtx.globalCompositeOperation = 'destination-out';
+      vrMaskCtx.fillStyle = '#000';
+      roundRect(vrMaskCtx, holeX, holeY, holePixW, holePixH, holeRad);
+      vrMaskCtx.fill();
+      vrMaskCtx.globalCompositeOperation = 'source-over';
+
+      vrMaskCtx.strokeStyle = 'rgba(180, 180, 180, 0.6)';
+      vrMaskCtx.lineWidth = 3 * (VR_MASK_CW / 1600);
+      roundRect(vrMaskCtx, holeX, holeY, holePixW, holePixH, holeRad);
+      vrMaskCtx.stroke();
+
+      vrMaskTexture.setSource(vrMaskCanvas);
+    }
+
+    const vrMaskMat = new pc.StandardMaterial();
+    vrMaskMat.emissiveMap = vrMaskTexture;
+    vrMaskMat.emissive = new pc.Color(1, 1, 1);
+    vrMaskMat.opacityMap = vrMaskTexture;
+    vrMaskMat.opacityMapChannel = 'a';
+    vrMaskMat.blendType = pc.BLEND_NORMAL;
+    vrMaskMat.useLighting = false;
+    vrMaskMat.depthTest = false;
+    vrMaskMat.depthWrite = false;
+    vrMaskMat.cull = pc.CULLFACE_NONE;
+    vrMaskMat.update();
+
+    const vrMask = new pc.Entity('vrMask');
+    vrMask.addComponent('render', { type: 'plane' });
+    vrMask.setLocalEulerAngles(90, 0, 0);
+    vrMask.setLocalPosition(0, 0, -VR_FRAME_DIST);
+    vrMask.setLocalScale(VR_MASK_PLANE_W, 1, VR_MASK_PLANE_H);
+    vrMask.render.meshInstances.forEach(mi => { mi.material = vrMaskMat; mi.drawOrder = 9998; });
+    vrFrameGroup.addChild(vrMask);
+
+    drawVrMask(VR_DEFAULT_WIN_W);
+
+    // ── VR Debug HUD (3D plane in the VR scene) ─────────────────────────
+    const VR_HUD_CW = 1024, VR_HUD_CH = 480;
+    const vrDebugCanvas = document.createElement('canvas');
+    vrDebugCanvas.width = VR_HUD_CW;
+    vrDebugCanvas.height = VR_HUD_CH;
+    const vrDebugTexture = new pc.Texture(app.graphicsDevice, {
+      width: VR_HUD_CW, height: VR_HUD_CH,
+      format: pc.PIXELFORMAT_RGBA8, mipmaps: false,
+      minFilter: pc.FILTER_LINEAR, magFilter: pc.FILTER_LINEAR,
+    });
+    const vrDebugMat = new pc.StandardMaterial();
+    vrDebugMat.emissiveMap = vrDebugTexture;
+    vrDebugMat.emissive = new pc.Color(1, 1, 1);
+    vrDebugMat.opacityMap = vrDebugTexture;
+    vrDebugMat.opacityMapChannel = 'a';
+    vrDebugMat.blendType = pc.BLEND_NORMAL;
+    vrDebugMat.useLighting = false;
+    vrDebugMat.depthTest = false;
+    vrDebugMat.depthWrite = false;
+    vrDebugMat.cull = pc.CULLFACE_NONE;
+    vrDebugMat.update();
+
+    const vrDebugHud = new pc.Entity('vrDebugHud');
+    vrDebugHud.addComponent('render', { type: 'plane' });
+    vrDebugHud.setLocalEulerAngles(90, 0, 0);
+    vrDebugHud.setLocalScale(0.32, 1, 0.15);
+    vrDebugHud.enabled = false;
+    vrDebugHud.render.meshInstances.forEach(mi => { mi.material = vrDebugMat; mi.drawOrder = 9999; });
+    vrFrameGroup.addChild(vrDebugHud);
+
+    function drawVrDebugHud(fps, resW, resH, fovDeg) {
+      const ctx = vrDebugCanvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, VR_HUD_CW, VR_HUD_CH);
+      ctx.fillStyle = 'rgba(10,10,10,0.78)';
+      roundRect(ctx, 0, 0, VR_HUD_CW, VR_HUD_CH, 36);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      ctx.lineWidth = 4;
+      roundRect(ctx, 2, 2, VR_HUD_CW - 4, VR_HUD_CH - 4, 34);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.font = 'bold 100px ui-monospace, monospace';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`FPS: ${fps}`, 40, VR_HUD_CH * 0.20);
+      ctx.fillText(`RES: ${resW}\u00d7${resH}`, 40, VR_HUD_CH * 0.53);
+      ctx.fillText(`FOV: ${fovDeg}\u00b0`, 40, VR_HUD_CH * 0.84);
+      vrDebugTexture.setSource(vrDebugCanvas);
+    }
+
+    // ── VR Scene Centering ──────────────────────────────────────────────
+    function centerSplatInVrWindow() {
+      if (!loadedSplatEntity || !loadedSplatEntity.enabled) return;
+      const worldMat = loadedSplatEntity.getWorldTransform();
+      const splatWorldCenter = new pc.Vec3();
+      worldMat.transformPoint(pc.Vec3.ZERO, splatWorldCenter);
+
+      const fgPos = vrFrameGroup.getPosition();
+      const dx = splatWorldCenter.x - fgPos.x;
+      const dy = splatWorldCenter.y - fgPos.y;
+      if (Math.abs(dx) + Math.abs(dy) < 1e-6) return;
+
+      const curPos = localFrame.getPosition();
+      localFrame.setPosition(curPos.x - dx, curPos.y - dy, curPos.z);
+    }
+
+    function fitVrWindowToSplat() {
+      if (!loadedSplatEntity || !loadedSplatEntity.enabled) {
+        drawVrMask(VR_DEFAULT_WIN_W);
+        return;
+      }
+      centerSplatInVrWindow();
+
+      const worldMat = loadedSplatEntity.getWorldTransform();
+      const localBounds = [
+        new pc.Vec3(-0.5, -0.5, -0.5), new pc.Vec3(0.5, -0.5, -0.5),
+        new pc.Vec3(-0.5, 0.5, -0.5),  new pc.Vec3(0.5, 0.5, -0.5),
+        new pc.Vec3(-0.5, -0.5, 0.5),  new pc.Vec3(0.5, -0.5, 0.5),
+        new pc.Vec3(-0.5, 0.5, 0.5),   new pc.Vec3(0.5, 0.5, 0.5),
+      ];
+      const fgInvMat = new pc.Mat4();
+      fgInvMat.copy(vrFrameGroup.getWorldTransform()).invert();
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      const tmp = new pc.Vec3();
+      for (const lp of localBounds) {
+        worldMat.transformPoint(lp, tmp);
+        fgInvMat.transformPoint(tmp, tmp);
+        if (tmp.x < minX) minX = tmp.x;
+        if (tmp.x > maxX) maxX = tmp.x;
+        if (tmp.y < minY) minY = tmp.y;
+        if (tmp.y > maxY) maxY = tmp.y;
+      }
+      const spanX = Math.max(1e-4, maxX - minX);
+      const spanY = Math.max(1e-4, maxY - minY);
+      const fitW = Math.max(spanX, spanY * VR_ASPECT) * 0.9;
+      drawVrMask(fitW);
+      centerSplatInVrWindow();
+    }
+
+    // ── VR Setup ─────────────────────────────────────────────────────────
+    const vrButton = document.createElement('button');
+    vrButton.id = 'VRButton';
+    vrButton.style.display = 'none';
+    let isVrActive = false;
+
+    function setupVR() {
+      if (!app.xr || !app.xr.supported) return;
+      if (app.xr.isAvailable(pc.XRTYPE_VR)) {
+        vrButton.style.display = '';
+      }
+      app.xr.on('available:' + pc.XRTYPE_VR, (available) => {
+        vrButton.style.display = available ? '' : 'none';
+      });
+      app.xr.on('start', () => {
+        isVrActive = true;
+        vrButton.setAttribute('aria-label', t('exitVr'));
+        cancelCachingTask();
+        stopPlayback();
+        savedLocalFramePos.copy(localFrame.getPosition());
+        cameraEntity.setLocalPosition(0, 0, 0);
+        cameraEntity.camera.clearColorBuffer = false;
+        localFrame.setPosition(0, 0, 0);
+        localFrame.setEulerAngles(0, 0, 0);
+        canvasEl.style.cssText = 'display:block;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;';
+        vrFrameGroup.enabled = true;
+        vrFrameGroup.setPosition(0, 0, 0);
+        vrFrameGroup.setEulerAngles(0, 0, 0);
+        vrFrameInitialized = false;
+        vrInitWaitFrames = 0;
+        pendingVrRefit = true;
+        drawVrMask(VR_DEFAULT_WIN_W);
+      });
+      app.xr.on('end', () => {
+        isVrActive = false;
+        vrButton.setAttribute('aria-label', t('enterVr'));
+        canvasEl.style.cssText = 'display:block;position:absolute;top:0;left:0;width:100%;height:100%;';
+        vrFrameGroup.enabled = false;
+        vrFrameInitialized = false;
+        pendingVrRefit = false;
+        cameraEntity.setLocalPosition(0, 0, 0.1);
+        cameraEntity.camera.clearColorBuffer = true;
+        localFrame.setPosition(savedLocalFramePos.x, savedLocalFramePos.y, savedLocalFramePos.z);
+        localFrame.setEulerAngles(0, 0, 0);
+        resetViewState();
+        if (isPlaying) scheduleNextPlaybackTick();
+        const needsWarmup = frames.length > 0 && frames.some(f => f && !f.entity?._gpuReady);
+        if (needsWarmup) startPlaybackAfterWarmup(frames);
+      });
+      vrButton.addEventListener('click', () => {
+        if (app.xr.active) {
+          app.xr.end();
+        } else {
+          app.xr.start(cameraEntity.camera, pc.XRTYPE_VR, pc.XRSPACE_LOCAL, {
+            optionalFeatures: ['hand-tracking'],
+          });
+        }
+      });
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && app.xr.active) {
+          e.preventDefault();
+          app.xr.end();
+        }
+      });
+    }
+
+    // ── Orbit Camera ─────────────────────────────────────────────────────
+    let orbitYaw = 0, orbitPitch = 0, orbitDistance = 0.1;
+    let orbitTargetX = 0, orbitTargetY = 0, orbitTargetZ = 0;
+    let initialOrbitYaw = 0, initialOrbitPitch = 0, initialOrbitDistance = 0.1;
+    let initialTargetX = 0, initialTargetY = 0, initialTargetZ = 0;
+    let hasInitialOrbit = false;
+
+    function applyOrbit() {
+      const cp = Math.cos(orbitPitch), sp = Math.sin(orbitPitch);
+      const cy = Math.cos(orbitYaw), sy = Math.sin(orbitYaw);
+      cameraEntity.setPosition(
+        orbitTargetX + orbitDistance * sy * cp,
+        orbitTargetY + orbitDistance * sp,
+        orbitTargetZ + orbitDistance * cy * cp
+      );
+      cameraEntity.lookAt(orbitTargetX, orbitTargetY, orbitTargetZ);
+    }
+
+    function resetView() {
+      if (!hasInitialOrbit) return;
+      orbitYaw = initialOrbitYaw; orbitPitch = initialOrbitPitch; orbitDistance = initialOrbitDistance;
+      orbitTargetX = initialTargetX; orbitTargetY = initialTargetY; orbitTargetZ = initialTargetZ;
+      applyOrbit();
+    }
+
+    function resetViewState() { resetView(); updateFov(30); }
+
+    let isDragging = false, lastPointerX = 0, lastPointerY = 0, pointerButtons = 0;
+    canvasEl.addEventListener('pointerdown', (e) => {
+      if (e.button === 2) e.preventDefault();
+      isDragging = true; lastPointerX = e.clientX; lastPointerY = e.clientY; pointerButtons = e.buttons;
+      canvasEl.setPointerCapture(e.pointerId);
+    });
+    canvasEl.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - lastPointerX, dy = e.clientY - lastPointerY;
+      lastPointerX = e.clientX; lastPointerY = e.clientY;
+      if (pointerButtons & 1) {
+        orbitYaw -= dx * 0.005;
+        orbitPitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, orbitPitch + dy * 0.005));
+        applyOrbit();
+      } else if (pointerButtons & 2) {
+        const panScale = orbitDistance * 0.002;
+        const camRight = new pc.Vec3(); cameraEntity.getWorldTransform().getX(camRight);
+        const camUp = new pc.Vec3(); cameraEntity.getWorldTransform().getY(camUp);
+        orbitTargetX -= camRight.x * dx * panScale + camUp.x * -dy * panScale;
+        orbitTargetY -= camRight.y * dx * panScale + camUp.y * -dy * panScale;
+        orbitTargetZ -= camRight.z * dx * panScale + camUp.z * -dy * panScale;
+        applyOrbit();
+      }
+    });
+    canvasEl.addEventListener('pointerup', (e) => { isDragging = false; canvasEl.releasePointerCapture(e.pointerId); });
+    canvasEl.addEventListener('pointercancel', () => { isDragging = false; });
+    canvasEl.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      orbitDistance *= 1 + e.deltaY * 0.001;
+      orbitDistance = Math.max(0.1, Math.min(50, orbitDistance));
+      applyOrbit();
+    }, { passive: false });
+    canvasEl.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Touch gestures (pinch zoom)
+    let lastTouchDist = 0;
+    canvasEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastTouchDist = Math.hypot(dx, dy);
+      }
+    }, { passive: true });
+    canvasEl.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        if (lastTouchDist > 0) {
+          orbitDistance *= lastTouchDist / dist;
+          orbitDistance = Math.max(0.1, Math.min(50, orbitDistance));
+          applyOrbit();
+        }
+        lastTouchDist = dist;
+      }
+    }, { passive: true });
+
+    // ── GSplat Loading ───────────────────────────────────────────────────
+    let loadedSplatEntity = null;
+    let gsplatAssetId = 0;
+
+    async function loadGsplatFromUrl(url, fileName) {
+      const assetName = 'gsplat_' + (++gsplatAssetId);
+      const fn = fileName || url.split('/').pop() || assetName;
+      const asset = new pc.Asset(assetName, 'gsplat', { url, filename: fn });
+      return new Promise((resolve, reject) => {
+        asset.on('load', () => {
+          const entity = new pc.Entity(assetName);
+          entity.addComponent('gsplat', { asset });
+          entity.setLocalScale(2, 2, 2);
+          entity.setLocalEulerAngles(180, 0, 0);
+          entity.enabled = false;
+          localFrame.addChild(entity);
+          resolve(entity);
+        });
+        asset.on('error', (err) => reject(new Error('GSplat load failed: ' + (err?.message || err))));
+        app.assets.add(asset);
+        app.assets.load(asset);
+      });
+    }
+
+    async function setSplatFile({ fileBytes, fileName, url }) {
+      if (url && isSogFile(fileName || url)) {
+        return loadGsplatFromUrl(url, fileName || url.split('/').pop());
+      }
+      if (fileBytes) {
+        const blob = new Blob([fileBytes], { type: 'application/octet-stream' });
+        const blobUrl = URL.createObjectURL(blob);
+        try {
+          const entity = await loadGsplatFromUrl(blobUrl, fileName);
+          entity._blobUrl = blobUrl;
+          return entity;
+        } catch (e) {
+          URL.revokeObjectURL(blobUrl);
+          throw e;
+        }
+      }
+      if (url) {
+        return loadGsplatFromUrl(url, fileName);
+      }
+      throw new Error('No data source for gsplat');
+    }
+
+    // ── Frame Management ─────────────────────────────────────────────────
+    const SHORT_MAX_FRAMES = 16, MEDIUM_MAX_FRAMES = 32;
+    const FRAME_LIMIT_MODE_SHORT = 'short', FRAME_LIMIT_MODE_MEDIUM = 'medium', FRAME_LIMIT_MODE_LONG = 'long';
+    let maxFramesMode = FRAME_LIMIT_MODE_SHORT;
+    let maxFramesToLoad = SHORT_MAX_FRAMES;
+
+    function applyFrameLimitMode(mode) {
+      if (mode === FRAME_LIMIT_MODE_LONG) { maxFramesMode = FRAME_LIMIT_MODE_LONG; maxFramesToLoad = Infinity; return; }
+      if (mode === FRAME_LIMIT_MODE_MEDIUM) { maxFramesMode = FRAME_LIMIT_MODE_MEDIUM; maxFramesToLoad = MEDIUM_MAX_FRAMES; return; }
+      maxFramesMode = FRAME_LIMIT_MODE_SHORT; maxFramesToLoad = SHORT_MAX_FRAMES;
+    }
+    function limitFrames(list) { return list.slice(0, maxFramesToLoad); }
+
+    const params = new URLSearchParams(document.location.search);
+    const paramFrameLimit = params.get('n') ?? params.get('maxFrames');
+    if (paramFrameLimit != null) {
+      const raw = String(paramFrameLimit).trim().toLowerCase();
+      if (raw === 'long' || raw === 'all') applyFrameLimitMode(FRAME_LIMIT_MODE_LONG);
+      else if (raw === 'medium' || raw === '32') applyFrameLimitMode(FRAME_LIMIT_MODE_MEDIUM);
+    }
+
+    let frames = [], currentIndex = 0, isPlaying = false, fps = 30, speedMultiplier = 1;
+    let isLoadingFrame = false, playbackTimer = null, isCaching = false, isSceneSwitching = false;
+    let cachingTaskId = 0, cachingProgress = 0, viewerPreviewFallbackQueue = [];
+    let isPageUnloading = false;
+    window.addEventListener('beforeunload', () => { isPageUnloading = true; });
+
+    const playBtn = document.querySelector('.play-button');
+    const cachingPercentEl = document.querySelector('.caching-percent');
+    const frameIndicatorEls = document.querySelectorAll('.frame-indicator');
+    const progressEl = document.querySelector('.progress');
+    const timeCurrentEl = document.querySelector('.time-current');
+    const timeTotalEl = document.querySelector('.time-total');
+    const speedSelect = document.querySelector('.speed-select');
+    const musicBtn = document.querySelector('.music-button');
+    const resetBtn = document.querySelector('.reset-button');
+    const viewerCloseBtn = document.querySelector('.viewer-close-button');
+    const sceneTitleOverlayEl = document.querySelector('.scene-title-overlay');
+    const viewerPreviewOverlayEl = document.querySelector('.viewer-preview-overlay');
+    const viewerPreviewImgEl = viewerPreviewOverlayEl?.querySelector('img') || null;
+    const frameLimitSelectEl = document.querySelector('.frame-limit-select');
+    const fovSlider = document.querySelector('.fov-slider');
+    const fovValue = document.querySelector('.fov-value');
+    const controlsRightEl = document.querySelector('.controls-right');
+    const prevSceneBtn = document.querySelector('.prev-scene-button');
+    const nextSceneBtn = document.querySelector('.next-scene-button');
+    const debugBtn = document.querySelector('.debug-button');
+    const debugPanelEl = document.querySelector('.debug-panel');
+    const debugFpsEl = debugPanelEl?.querySelector('.debug-fps');
+    const debugResEl = debugPanelEl?.querySelector('.debug-resolution');
+    const debugFovEl = debugPanelEl?.querySelector('.debug-fov');
+    const languageSelectEl = document.querySelector('.language-select');
+
+    applyStaticI18n();
+
+    if (languageSelectEl) {
+      languageSelectEl.value = UI_LANG;
+      languageSelectEl.addEventListener('change', () => {
+        const nextLang = normalizeLanguageCode(languageSelectEl.value) || 'en';
+        if (nextLang === UI_LANG) return;
+        try { localStorage.setItem(LANG_STORAGE_KEY, nextLang); } catch {}
+        window.location.reload();
+      });
+    }
+
+    if (frameLimitSelectEl) {
+      frameLimitSelectEl.value = maxFramesMode;
+      frameLimitSelectEl.addEventListener('change', () => {
+        applyFrameLimitMode(frameLimitSelectEl.value);
+        frameLimitSelectEl.value = maxFramesMode;
+      });
+    }
+
+    if (vrButton) {
+      vrButton.setAttribute('aria-label', t('enterVr'));
+      vrButton.setAttribute('title', t('enterVr'));
+      if (controlsRightEl) controlsRightEl.appendChild(vrButton);
+    }
+
+    // ── Debug ────────────────────────────────────────────────────────────
+    let debugVisible = false, debugLastUpdateMs = -Infinity, debugSmoothedFps = null;
+    if (debugBtn) {
+      debugBtn.textContent = t('debugLabel');
+      debugBtn.classList.add('is-inactive');
+      debugBtn.addEventListener('click', () => {
+        debugVisible = !debugVisible;
+        debugBtn.classList.toggle('is-active', debugVisible);
+        debugBtn.classList.toggle('is-inactive', !debugVisible);
+        if (debugPanelEl) debugPanelEl.hidden = !debugVisible;
+        if (debugVisible) debugLastUpdateMs = -Infinity;
+      });
+    }
+
+    // ── Music (HTML5 Audio) ──────────────────────────────────────────────
+    const SCENE_MUSIC_FILE_BY_NAME = {
+      '网课': './scenes/audio/online-class.mp3',
+      '仓大佬跳舞': './scenes/audio/cang-dance.mp3',
+      '动物世界': './scenes/audio/animal-world.mp3',
+      '少年派': './scenes/audio/life-of-pi.mp3',
+      '直播美女': './scenes/audio/live-beauty.mp3',
+    };
+    const BG_MUSIC_FALLBACKS = ['./scenes/audio/bg-music.mp3', './scenes/audio/background.mp3'];
+    const bgAudio = new Audio();
+    bgAudio.loop = true;
+    bgAudio.volume = 0.28;
+    let isMusicEnabled = true, musicReady = false, musicLoadFailed = false, activeMusicCandidates = [...BG_MUSIC_FALLBACKS];
+
+    function getSceneNameFromDir(dirUrl) { const parts = normalizeDirectoryUrl(dirUrl).split('/').filter(Boolean); return parts[parts.length - 1] || ''; }
+    function buildMusicCandidates(sceneName) {
+      const c = []; const s = SCENE_MUSIC_FILE_BY_NAME[sceneName]; if (s) c.push(s);
+      for (const f of BG_MUSIC_FALLBACKS) { if (!c.includes(f)) c.push(f); } return c;
+    }
+    function applySceneMusic(dirUrl) {
+      const name = getSceneNameFromDir(dirUrl);
+      activeMusicCandidates = buildMusicCandidates(name);
+      musicReady = false; musicLoadFailed = false;
+      if (!bgAudio.paused) bgAudio.pause();
+      updateMusicButtonUI();
+    }
+    function updateMusicButtonUI() {
+      if (!musicBtn) return;
+      musicBtn.textContent = t('musicLabel');
+      musicBtn.classList.toggle('is-inactive', !isMusicEnabled);
+    }
+
+    async function ensureMusicReady() {
+      if (musicReady) return true;
+      if (musicLoadFailed) return false;
+      for (const url of activeMusicCandidates) {
+        try {
+          const resp = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' } });
+          if (resp.ok || resp.status === 206) { bgAudio.src = url; musicReady = true; updateMusicButtonUI(); return true; }
+        } catch {}
+      }
+      musicLoadFailed = true; isMusicEnabled = false; updateMusicButtonUI(); return false;
+    }
+
+    async function syncMusicWithPlayback() {
+      if (!isMusicEnabled || !isPlaying) { bgAudio.pause(); return; }
+      if (await ensureMusicReady()) { bgAudio.play().catch(() => {}); }
+    }
+
+    updateMusicButtonUI();
+    if (musicBtn) {
+      musicBtn.addEventListener('click', async () => {
+        if (!musicReady && !isMusicEnabled) { if (!(await ensureMusicReady())) return; isMusicEnabled = true; }
+        else { isMusicEnabled = !isMusicEnabled; }
+        updateMusicButtonUI();
+        if (isMusicEnabled) await syncMusicWithPlayback(); else bgAudio.pause();
+      });
+    }
+
+    // ── FOV ──────────────────────────────────────────────────────────────
+    function updateFov(value) {
+      const nextFov = Math.min(90, Math.max(10, Number(value)));
+      cameraEntity.camera.fov = nextFov;
+      fovValue.textContent = `${Math.round(nextFov)}°`;
+      fovSlider.value = String(nextFov);
+    }
+
+    // ── Time/Progress helpers ────────────────────────────────────────────
+    function formatTime(s) { if (!Number.isFinite(s) || s < 0) return '00:00'; const m = Math.floor(s/60); return `${String(m).padStart(2,'0')}:${String(Math.floor(s%60)).padStart(2,'0')}`; }
+    function extractFrameSequence(name) { const m = String(name||'').match(/(\d+)(?!.*\d)/); return m ? Number(m[1]) : null; }
+    function getFrameTimeUnits(index, fl = frames) { const f = fl[index]; if (!f) return index; if (Number.isFinite(f.timeUnits)) return f.timeUnits; const p = extractFrameSequence(f.name); f.timeUnits = Number.isFinite(p) ? p : index; return f.timeUnits; }
+    function getTypicalFrameStepUnits(fl = frames) { if (fl.length < 2) return 1; let min = Infinity; for (let i = 1; i < fl.length; i++) { const d = getFrameTimeUnits(i,fl) - getFrameTimeUnits(i-1,fl); if (d > 0 && d < min) min = d; } return Number.isFinite(min) ? min : 1; }
+    function getNextFrameDelayMs(index, fl = frames) {
+      const total = fl.length; if (total <= 1) return 1000 / (fps * Math.max(speedMultiplier, 0.001));
+      const cur = getFrameTimeUnits(index, fl), nxt = getFrameTimeUnits((index+1)%total, fl);
+      let delta = nxt - cur;
+      if (delta <= 0) { const step = getTypicalFrameStepUnits(fl); delta += Math.max(step, getFrameTimeUnits(total-1,fl) - getFrameTimeUnits(0,fl) + step); }
+      return Math.max(1, 1000 * delta / (fps * Math.max(speedMultiplier, 0.001)));
+    }
+    function updateIndicator() { const total = frames.length||0, idx = total ? currentIndex+1 : 0; for (const el of frameIndicatorEls) el.textContent = `${idx}/${total}`; }
+    function updateProgress() {
+      const total = frames.length||0; progressEl.max = total > 0 ? String(total-1) : '0'; progressEl.value = total > 0 ? String(currentIndex) : '0';
+      const safeFps = Math.max(fps,0.001), f0 = total > 0 ? getFrameTimeUnits(0) : 0, fN = total > 0 ? getFrameTimeUnits(total-1) : 0, fC = total > 0 ? getFrameTimeUnits(currentIndex) : 0;
+      timeCurrentEl.textContent = formatTime((fC - f0)/safeFps); timeTotalEl.textContent = formatTime((fN - f0)/safeFps);
+    }
+
+    // ── Viewer UI ────────────────────────────────────────────────────────
+    function showViewerInterface() { document.querySelector('.container').classList.add('hidden'); document.querySelector('.canvas-container').classList.remove('invisible'); const c = document.querySelector('.controls'); if (c) c.classList.add('is-disabled'); }
+    function showImportInterface() {
+      setPlaying(false);
+      document.querySelector('.canvas-container').classList.add('invisible');
+      document.querySelector('.container').classList.remove('hidden');
+      hideViewerPreviewOverlay(); sceneSelectionRequestId += 1; clearSceneCardLoadingState();
+      selectedSceneDirectory = ''; applySceneMusic('');
+      setCacheButtonState({ label: cacheButtonIdleLabel, progress: 0, disabled: false });
+      setViewerSceneTitle('');
+    }
+    function setViewerSceneTitle(title) { if (!sceneTitleOverlayEl) return; const s = String(title||'').trim(); sceneTitleOverlayEl.textContent = s; sceneTitleOverlayEl.classList.toggle('has-text', s.length > 0); }
+    function hideViewerPreviewOverlay() { viewerPreviewFallbackQueue = []; if (!viewerPreviewOverlayEl) return; viewerPreviewOverlayEl.classList.remove('is-visible'); if (viewerPreviewImgEl) viewerPreviewImgEl.removeAttribute('src'); }
+    function showViewerPreviewOverlay(urls = []) {
+      if (!viewerPreviewOverlayEl || !viewerPreviewImgEl) return;
+      const c = Array.isArray(urls) ? urls.map(u => String(u||'').trim()).filter(Boolean) : [];
+      if (!c.length) { hideViewerPreviewOverlay(); return; }
+      const [primary, ...fallbacks] = c; viewerPreviewFallbackQueue = fallbacks; viewerPreviewImgEl.src = primary; viewerPreviewOverlayEl.classList.add('is-visible');
+    }
+    if (viewerPreviewImgEl) viewerPreviewImgEl.addEventListener('error', () => { const next = viewerPreviewFallbackQueue.shift(); if (next) { viewerPreviewImgEl.src = next; return; } hideViewerPreviewOverlay(); });
+
+    // ── Frame entity management ──────────────────────────────────────────
+    function hasUsableBytes(frame) { return frame && frame.bytes instanceof Uint8Array && frame.bytes.byteLength > 0; }
+
+    async function ensureFrameBytes(index, fl = frames) {
+      const frame = fl[index]; if (!frame) return null;
+      if (hasUsableBytes(frame)) return frame.bytes;
+      if (frame.bytesPromise) return frame.bytesPromise;
+      frame.bytesPromise = (async () => {
+        try {
+          if (frame.file) { frame.bytes = new Uint8Array(await frame.file.arrayBuffer()); }
+          else if (frame.url) { const resp = await fetch(frame.url); if (!resp.ok) throw new Error(`HTTP ${resp.status}`); frame.bytes = new Uint8Array(await resp.arrayBuffer()); }
+          return frame.bytes;
+        } catch (e) { frame.bytesPromise = null; throw e; }
+      })();
+      return frame.bytesPromise;
+    }
+
+    async function ensureFrameEntity(index, fl = frames) {
+      const frame = fl[index]; if (!frame) return null;
+      if (frame.entity) return frame.entity;
+      if (frame.entityPromise) return frame.entityPromise;
+      frame.entityPromise = (async () => {
+        try {
+          const sogByUrl = frame.url && isSogFile(frame.name || frame.url);
+          if (!sogByUrl && !hasUsableBytes(frame) && (frame.file || frame.url)) { frame.bytes = null; frame.bytesPromise = null; await ensureFrameBytes(index, fl); }
+          const entity = await setSplatFile({ fileBytes: sogByUrl ? null : frame.bytes, fileName: frame.name, url: frame.url });
+          entity.enabled = false;
+          frame.entity = entity;
+          return entity;
+        } catch (e) { frame.entityPromise = null; throw e; }
+      })();
+      return frame.entityPromise;
+    }
+
+    function releaseFrameEntity(frame) {
+      if (!frame?.entity) return;
+      const e = frame.entity;
+      e.enabled = false;
+      if (e._blobUrls) { Object.values(e._blobUrls).forEach(u => URL.revokeObjectURL(u)); e._blobUrls = null; }
+      if (e._blobUrl) { URL.revokeObjectURL(e._blobUrl); e._blobUrl = null; }
+      e.destroy();
+      frame.entity = null; frame.entityPromise = null;
+    }
+
+    function releaseFrameListResources(fl) {
+      if (!Array.isArray(fl)) return;
+      for (const f of fl) { releaseFrameEntity(f); }
+    }
+
+    function trimFrameEntities(activeIndex, fl = frames) {
+      const maxResident = 18;
+      if (fl.length <= maxResident) return;
+      const loaded = [];
+      for (let i = 0; i < fl.length; i++) { if (fl[i]?.entity) loaded.push(i); }
+      if (loaded.length <= maxResident) return;
+      const circDist = (a, b, n) => { const d = Math.abs(a - b); return Math.min(d, n - d); };
+      loaded.sort((a, b) => circDist(b, activeIndex, fl.length) - circDist(a, activeIndex, fl.length));
+      while (loaded.length > maxResident) { const idx = loaded.shift(); if (idx !== activeIndex) releaseFrameEntity(fl[idx]); }
+    }
+
+    function preloadFrames(activeIndex, fl = frames) {
+      const total = fl.length; if (!total) return;
+      const ahead = Math.min(6, total - 1);
+      for (let s = 1; s <= ahead; s++) {
+        const i = (activeIndex + s) % total;
+        if (!fl[i]?.entity && !fl[i]?.entityPromise) ensureFrameEntity(i, fl).catch(() => {});
+      }
+    }
+
+    // ── Show Frame ───────────────────────────────────────────────────────
+    const waitFrames = (n) => new Promise(resolve => {
+      let remaining = n;
+      const tick = () => { if (--remaining <= 0) resolve(); else requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+    });
+
+    async function showFrame(index) {
+      if (!frames.length || isLoadingFrame) return;
+      isLoadingFrame = true;
+      currentIndex = (index + frames.length) % frames.length;
+      const frame = frames[currentIndex];
+      try {
+        if (!frame) return;
+        const entity = await ensureFrameEntity(currentIndex);
+        if (!entity) return;
+        entity.enabled = true;
+        if (!entity._gpuReady) {
+          await waitFrames(2);
+          entity._gpuReady = true;
+        }
+        if (loadedSplatEntity && loadedSplatEntity !== entity) loadedSplatEntity.enabled = false;
+        loadedSplatEntity = entity;
+        hideViewerPreviewOverlay();
+        const controlsEl = document.querySelector('.controls');
+        if (controlsEl) controlsEl.classList.remove('is-disabled');
+        if (!hasInitialOrbit) {
+          initialOrbitYaw = orbitYaw; initialOrbitPitch = orbitPitch; initialOrbitDistance = orbitDistance;
+          initialTargetX = orbitTargetX; initialTargetY = orbitTargetY; initialTargetZ = orbitTargetZ;
+          hasInitialOrbit = true;
+        }
+      } catch (error) { if (frame) frame.entityPromise = null; throw error; }
+      finally { isLoadingFrame = false; }
+      updateIndicator(); updateProgress();
+      trimFrameEntities(currentIndex, frames);
+      preloadFrames(currentIndex, frames);
+    }
+
+    async function nextFrame() { await showFrame(currentIndex + 1); }
+
+    // ── Playback ─────────────────────────────────────────────────────────
+    function scheduleNextPlaybackTick() {
+      if (isVrActive || !isPlaying || playbackTimer || !frames.length) return;
+      const delayMs = getNextFrameDelayMs(currentIndex, frames);
+      playbackTimer = setTimeout(async () => {
+        playbackTimer = null;
+        if (!isPlaying || !frames.length) return;
+        try { if (!isLoadingFrame) await nextFrame(); } catch (e) { console.warn('Playback frame failed:', e); }
+        scheduleNextPlaybackTick();
+      }, delayMs);
+    }
+    function startPlayback() { scheduleNextPlaybackTick(); }
+    function stopPlayback() { if (playbackTimer) { clearTimeout(playbackTimer); playbackTimer = null; } }
+
+    function setPlaying(val) {
+      isPlaying = val;
+      playBtn.classList.toggle('is-playing', isPlaying);
+      playBtn.setAttribute('aria-label', isPlaying ? t('pause') : t('play'));
+      if (isPlaying) { startPlayback(); void syncMusicWithPlayback(); }
+      else { stopPlayback(); bgAudio.pause(); }
+    }
+
+    function updatePlayButtonLoadingState() { const busy = isCaching || isSceneSwitching; playBtn.classList.toggle('is-loading', busy); playBtn.disabled = busy; }
+    function setSceneSwitching(v) { isSceneSwitching = Boolean(v); updatePlayButtonLoadingState(); }
+    function setCaching(v) { isCaching = v; updatePlayButtonLoadingState(); if (!isCaching) cachingProgress = 0; if (cachingPercentEl) { cachingPercentEl.classList.toggle('is-visible', isCaching); cachingPercentEl.textContent = `${Math.round(cachingProgress)}%`; } if (isCaching) setPlaying(false); }
+    function setCachingProgress(v) { cachingProgress = Math.max(0, Math.min(100, Number(v)||0)); if (cachingPercentEl) cachingPercentEl.textContent = `${Math.round(cachingProgress)}%`; }
+    function cancelCachingTask() { cachingTaskId++; setCaching(false); }
+
+    async function runConcurrentTasks(total, concurrency, runTask, onProgress) {
+      let next = 0, completed = 0;
+      const worker = async () => { while (true) { const i = next++; if (i >= total) return; await runTask(i); completed++; if (onProgress) onProgress(completed, total, i); } };
+      await Promise.all(Array.from({ length: Math.min(concurrency, total) }, () => worker()));
+    }
+
+    async function warmupPlayback(fl = frames) {
+      if (!fl.length) return true;
+      const taskId = ++cachingTaskId;
+      setCaching(true); setCachingProgress(0);
+      try {
+        await runConcurrentTasks(fl.length, 1, async (i) => {
+          if (taskId !== cachingTaskId) throw new Error('cancelled');
+          await ensureFrameEntity(i, fl);
+        }, (done) => { if (taskId === cachingTaskId) setCachingProgress(done / fl.length * 100); });
+        if (taskId !== cachingTaskId) return false;
+        for (let i = 0; i < fl.length; i++) {
+          if (taskId !== cachingTaskId) return false;
+          const entity = fl[i]?.entity;
+          if (entity && !entity._gpuReady) {
+            entity.enabled = true;
+            await waitFrames(2);
+            entity._gpuReady = true;
+            if (entity !== loadedSplatEntity) entity.enabled = false;
+          }
+        }
+        return taskId === cachingTaskId;
+      } catch (e) { if (e.message === 'cancelled') return false; throw e; }
+      finally { if (taskId === cachingTaskId) setCaching(false); }
+    }
+
+    async function startPlaybackAfterWarmup(fl = frames) {
+      if (isCaching || !fl.length) return false;
+      if (!loadedSplatEntity) await showFrame(currentIndex);
+      const done = await warmupPlayback(fl);
+      if (!done) return false;
+      setPlaying(true); return true;
+    }
+
+    async function togglePlaybackFromUi() {
+      if (isCaching || isSceneSwitching) return;
+      if (isPlaying) { setPlaying(false); return; }
+      if (!frames.length) return;
+      await startPlaybackAfterWarmup(frames);
+    }
+
+    playBtn.addEventListener('click', () => togglePlaybackFromUi());
+
+    const CANVAS_CLICK_THRESHOLD = 8;
+    let canvasDownPos = null;
+    canvasEl.addEventListener('pointerdown', (e) => { if (e.isPrimary && e.button === 0) canvasDownPos = { id: e.pointerId, x: e.clientX, y: e.clientY }; });
+    canvasEl.addEventListener('pointerup', (e) => {
+      if (!canvasDownPos || canvasDownPos.id !== e.pointerId) { canvasDownPos = null; return; }
+      if (Math.hypot(e.clientX - canvasDownPos.x, e.clientY - canvasDownPos.y) <= CANVAS_CLICK_THRESHOLD) void togglePlaybackFromUi();
+      canvasDownPos = null;
+    });
+
+    speedSelect.addEventListener('change', () => { const v = Number(speedSelect.value); if (Number.isFinite(v) && v > 0) { speedMultiplier = v; if (isPlaying) { stopPlayback(); startPlayback(); } } });
+    fovSlider.addEventListener('input', () => updateFov(fovSlider.value));
+    progressEl.addEventListener('input', () => { if (!frames.length) return; setPlaying(false); showFrame(Number(progressEl.value)||0); });
+    resetBtn?.addEventListener('click', () => resetViewState());
+    viewerCloseBtn?.addEventListener('click', async () => { if (app.xr?.active) app.xr.end(); showImportInterface(); });
+    updateFov(cameraEntity.camera.fov);
+
+    // ── switchToFrameList ────────────────────────────────────────────────
+    function createSceneFramesFromUrls(urls) {
+      return limitFrames(urls).map((u, i) => {
+        const name = u.split('/').pop().split('?')[0];
+        const p = extractFrameSequence(name);
+        return { url: u, name, timeUnits: Number.isFinite(p) ? p : i, file: null, bytes: null, entity: null, entityPromise: null, bytesPromise: null };
+      });
+    }
+
+    async function switchToFrameList(nextFrames, { warmup = false, ensureFirstBytes = false, showViewerEarly = false, viewerPreviewCandidates = [], releaseOnlyIfChanged = false } = {}) {
+      cancelCachingTask();
+      const prev = frames; frames = nextFrames; currentIndex = 0; setPlaying(false);
+      if (!releaseOnlyIfChanged || prev !== frames) releaseFrameListResources(prev);
+      if (!frames.length) return;
+      if (showViewerEarly) { showViewerInterface(); showViewerPreviewOverlay(viewerPreviewCandidates); } else { hideViewerPreviewOverlay(); }
+      if (ensureFirstBytes) { if (showViewerEarly) ensureFrameBytes(0, frames).catch(() => {}); else await ensureFrameBytes(0, frames); }
+      await showFrame(0);
+      resetViewState();
+      if (!showViewerEarly) showViewerInterface();
+      if (warmup) await startPlaybackAfterWarmup(frames);
+    }
+
+    // ── File drop/import ─────────────────────────────────────────────────
+    function sortFilesByName(files) {
+      return files.slice().sort((a, b) => {
+        const aS = extractFrameSequence(a?.name), bS = extractFrameSequence(b?.name);
+        if (Number.isFinite(aS) && Number.isFinite(bS) && aS !== bS) return aS - bS;
+        return String(a?.name||'').localeCompare(String(b?.name||''), undefined, { numeric: true });
+      });
+    }
+
+    async function loadSplatFiles(files) {
+      applySceneMusic('');
+      const ordered = sortFilesByName(files);
+      const loaded = limitFrames(ordered.map(f => ({
+        name: f.name, timeUnits: extractFrameSequence(f.name), file: f, bytes: null, entity: null, entityPromise: null, bytesPromise: null,
+      })));
+      await switchToFrameList(loaded, { warmup: true, ensureFirstBytes: true });
+      setViewerSceneTitle(ordered[0]?.name?.replace(/\.[^.]+$/, '') || '');
+    }
+
+    const dropZoneEl = document.querySelector('.container');
+    const dropUIEl = document.querySelector('.drop-zone');
+    const onDragover = (e) => { e.preventDefault(); dropUIEl.classList.add('dragover'); };
+    const onDragLeave = () => dropUIEl.classList.remove('dragover');
+    const onDrop = (e) => { e.preventDefault(); dropUIEl.classList.remove('dragover'); const f = Array.from(e.dataTransfer.files||[]); if (f.length) loadSplatFiles(f); };
+    dropZoneEl.addEventListener('dragover', onDragover);
+    canvasEl.addEventListener('dragover', onDragover);
+    dropZoneEl.addEventListener('dragleave', onDragLeave);
+    canvasEl.addEventListener('dragleave', onDragLeave);
+    dropZoneEl.addEventListener('drop', onDrop);
+    canvasEl.addEventListener('drop', onDrop);
+    const fileInput = document.querySelector('#file-input');
+    fileInput.onchange = (e) => { const f = Array.from(e.target.files||[]); if (f.length) loadSplatFiles(f); e.target.value = ''; };
+    dropUIEl.addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
+
+    // ── Scene Catalog ────────────────────────────────────────────────────
+    const SPLAT_EXTS = ['.ply', '.spz', '.splat', '.ksplat', '.sog'];
+    const SCENES_API_URL = './api/scenes';
+    let sceneCatalogPromise = null;
+    const sceneCache = new Map();
+
+    async function loadSceneCatalog() {
+      if (sceneCatalogPromise) return sceneCatalogPromise;
+      sceneCatalogPromise = (async () => {
+        try { const r = await fetch(SCENES_API_URL, { cache: 'no-store' }); if (r.ok) { const p = await r.json(); if (p?.scenes) return p.scenes; } return {}; }
+        catch { return {}; }
+      })();
+      return sceneCatalogPromise;
+    }
+
+    function extractSceneUrls(config) {
+      if (typeof config === 'string') return [config];
+      if (Array.isArray(config)) return config;
+      if (!config || typeof config !== 'object') return [];
+      if (Array.isArray(config.urls)) return config.urls;
+      if (typeof config.urls === 'string') return [config.urls];
+      if (typeof config.baseUrl === 'string' && Array.isArray(config.files)) {
+        const base = config.baseUrl.endsWith('/') ? config.baseUrl : config.baseUrl + '/';
+        return config.files.map(n => base + n);
+      }
+      return [];
+    }
+
+    function normalizeDirectoryUrl(input) { let d = (input||'').trim(); if (!d) return '/'; if (!d.startsWith('/')) d = '/' + d; if (!d.endsWith('/')) d += '/'; return d; }
+    function normalizeCatalogKey(input) { return normalizeDirectoryUrl(input).replace(/^\/+|\/+$/g, ''); }
+    function getSceneCacheKey(dir) { return `${normalizeDirectoryUrl(dir)}::${maxFramesMode}`; }
+
+    async function discoverSplatFiles(dirUrl) {
+      const key = normalizeCatalogKey(dirUrl);
+      const catalog = await loadSceneCatalog();
+      const config = catalog[key]; if (!config) return [];
+      return limitFrames(extractSceneUrls(config).filter(u => typeof u === 'string' && SPLAT_EXTS.some(ext => u.toLowerCase().endsWith(ext))));
+    }
+
+    function getDirectoryDisplayName(dirUrl) { const parts = normalizeDirectoryUrl(dirUrl).split('/').filter(Boolean); const raw = parts[parts.length-1]||''; return localizeSceneName(raw) || raw; }
+
+    async function loadSceneByDirectory(dirUrl, { viewerPreviewCandidates = [], selectionRequestId = null } = {}) {
+      const norm = normalizeDirectoryUrl(dirUrl);
+      if (selectionRequestId != null && selectionRequestId !== sceneSelectionRequestId) return;
+      const cacheKey = getSceneCacheKey(norm);
+      let entry = sceneCache.get(cacheKey);
+      if (!entry) { const urls = await discoverSplatFiles(norm); if (selectionRequestId != null && selectionRequestId !== sceneSelectionRequestId) return; entry = { dir: norm, frames: createSceneFramesFromUrls(urls) }; sceneCache.set(cacheKey, entry); }
+      await switchToFrameList(entry.frames, { warmup: true, ensureFirstBytes: true, releaseOnlyIfChanged: true, showViewerEarly: true, viewerPreviewCandidates });
+      if (selectionRequestId != null && selectionRequestId !== sceneSelectionRequestId) return;
+      setViewerSceneTitle(getDirectoryDisplayName(norm));
+    }
+
+    // ── Scene Preview Grid ───────────────────────────────────────────────
+    const scenePreviewGridEl = document.querySelector('.scene-preview-grid');
+    const cacheAllBtnEl = document.querySelector('.cache-all-button');
+    const cacheAllProgressEl = document.querySelector('.cache-all-progress');
+    const cacheAllLabelEl = document.querySelector('.cache-all-label');
+    let selectedSceneDirectory = '';
+    const scenePreviewByDirectory = new Map();
+    let sceneSelectionRequestId = 0;
+    let cacheButtonIdleLabel = t('cache');
+    let cacheLabelAnimTimer = null, cacheAllLabelTextEl = null, cacheAllLabelDotsEl = null;
+    let sceneDirectoryList = [];
+
+    function ensureCacheLabelParts() {
+      if (!cacheAllLabelEl || (cacheAllLabelTextEl && cacheAllLabelDotsEl)) return;
+      cacheAllLabelEl.innerHTML = '';
+      cacheAllLabelTextEl = document.createElement('span'); cacheAllLabelTextEl.className = 'cache-all-label-text';
+      cacheAllLabelDotsEl = document.createElement('span'); cacheAllLabelDotsEl.className = 'cache-all-label-dots';
+      cacheAllLabelEl.appendChild(cacheAllLabelTextEl); cacheAllLabelEl.appendChild(cacheAllLabelDotsEl);
+    }
+    function setCacheLabel(base, dots = '') { ensureCacheLabelParts(); if (cacheAllLabelTextEl) cacheAllLabelTextEl.textContent = base; if (cacheAllLabelDotsEl) cacheAllLabelDotsEl.textContent = dots; }
+    function stopCacheLabelAnimation() { if (cacheLabelAnimTimer) { clearInterval(cacheLabelAnimTimer); cacheLabelAnimTimer = null; } }
+    function startCacheLabelAnimation(base) { stopCacheLabelAnimation(); ensureCacheLabelParts(); let f = 0; const dots = ['','.','..','...']; setCacheLabel(base, dots[1]); cacheLabelAnimTimer = setInterval(() => { f = (f+1)%4; setCacheLabel(base, dots[f]); }, 350); }
+    function setCacheButtonState({ label = t('cache'), progress = 0, disabled = false, isCaching: ic = false } = {}) {
+      if (ic) startCacheLabelAnimation(label); else { stopCacheLabelAnimation(); setCacheLabel(label); }
+      if (cacheAllProgressEl) { let p = Math.max(0, Math.min(100, progress)); if (ic && p < 10) p = 10; cacheAllProgressEl.style.width = `${p}%`; }
+      if (cacheAllBtnEl) { cacheAllBtnEl.disabled = disabled; cacheAllBtnEl.classList.toggle('is-caching', ic); }
+    }
+    function setScenePreviewStatus(text) { if (!scenePreviewGridEl) return; scenePreviewGridEl.innerHTML = ''; const el = document.createElement('div'); el.className = 'scene-preview-status'; el.textContent = text; scenePreviewGridEl.appendChild(el); }
+    function clearSceneCardLoadingState() { scenePreviewGridEl?.querySelectorAll('.scene-card.is-loading').forEach(c => c.classList.remove('is-loading')); }
+    function syncScenePreviewSelection() { if (!scenePreviewGridEl) return; const ad = normalizeDirectoryUrl(selectedSceneDirectory); scenePreviewGridEl.querySelectorAll('.scene-card').forEach(c => { c.classList.toggle('is-selected', Boolean(ad && ad !== '/' && normalizeDirectoryUrl(c.dataset.dir||'') === ad)); }); }
+
+    function getScenePreviewInfo(sceneName) {
+      const primary = `./scenes/${sceneName}/0000.png`;
+      return { primary, fallbacks: [] };
+    }
+    function getScenePreviewCandidatesForDirectory(dirUrl) {
+      const info = scenePreviewByDirectory.get(normalizeDirectoryUrl(dirUrl)); if (!info) return [];
+      return [info.primary, ...(info.fallbacks||[])].filter(Boolean);
+    }
+
+    function updateSceneNavButtons() {
+      if (!prevSceneBtn || !nextSceneBtn) return;
+      const has = sceneDirectoryList.length > 1 && selectedSceneDirectory;
+      prevSceneBtn.classList.toggle('is-visible', has); nextSceneBtn.classList.toggle('is-visible', has);
+    }
+
+    async function handleSceneSelection(dirUrl, previewCandidates = null, requestId = null) {
+      const norm = normalizeDirectoryUrl(dirUrl); if (!norm || norm === '/') return;
+      const rid = requestId ?? (++sceneSelectionRequestId);
+      setSceneSwitching(true); selectedSceneDirectory = norm; applySceneMusic(norm); updateSceneNavButtons();
+      setViewerSceneTitle(getDirectoryDisplayName(norm)); syncScenePreviewSelection();
+      const candidates = Array.isArray(previewCandidates) && previewCandidates.length > 0 ? previewCandidates : getScenePreviewCandidatesForDirectory(norm);
+      try {
+        await loadSceneByDirectory(norm, { viewerPreviewCandidates: candidates, selectionRequestId: rid });
+      } finally { if (rid === sceneSelectionRequestId) { setSceneSwitching(false); updateSceneNavButtons(); } }
+    }
+
+    async function switchSceneByOffset(offset) {
+      if (sceneDirectoryList.length < 2 || !selectedSceneDirectory) return;
+      const idx = sceneDirectoryList.indexOf(selectedSceneDirectory);
+      const next = ((idx + offset) % sceneDirectoryList.length + sceneDirectoryList.length) % sceneDirectoryList.length;
+      await handleSceneSelection(sceneDirectoryList[next], getScenePreviewCandidatesForDirectory(sceneDirectoryList[next]));
+    }
+    prevSceneBtn?.addEventListener('click', () => switchSceneByOffset(-1));
+    nextSceneBtn?.addEventListener('click', () => switchSceneByOffset(1));
+
+    async function discoverSubdirectories() {
+      const catalog = await loadSceneCatalog();
+      const names = Object.keys(catalog);
+      const pinned = '网课';
+      return names.sort((a, b) => { if (a === pinned && b !== pinned) return -1; if (b === pinned && a !== pinned) return 1; return 0; });
+    }
+
+    async function setScenePreviewCards(baseDir, directories) {
+      if (!scenePreviewGridEl) return;
+      if (!Array.isArray(directories) || !directories.length) { sceneDirectoryList = []; updateSceneNavButtons(); setScenePreviewStatus(t('noScenePreviews')); return; }
+      const normBase = normalizeDirectoryUrl(baseDir);
+      scenePreviewGridEl.innerHTML = '';
+      scenePreviewByDirectory.clear();
+      sceneDirectoryList = directories.map(n => normalizeDirectoryUrl(`${normBase}${n}/`));
+      for (const name of directories) {
+        const fullDir = normalizeDirectoryUrl(`${normBase}${name}/`);
+        const previewInfo = getScenePreviewInfo(name);
+        scenePreviewByDirectory.set(fullDir, previewInfo);
+        const displayName = localizeSceneName(name);
+        const card = document.createElement('button'); card.type = 'button'; card.className = 'scene-card'; card.dataset.dir = fullDir; card.title = fullDir;
+        const thumb = document.createElement('div'); thumb.className = 'scene-card-thumb';
+        const image = document.createElement('img'); image.alt = `${displayName} preview`; image.loading = 'lazy'; image.decoding = 'async';
+        image.onerror = () => { image.remove(); if (!thumb.querySelector('.scene-card-thumb-fallback')) { const fb = document.createElement('span'); fb.className = 'scene-card-thumb-fallback'; fb.textContent = t('noPreview'); thumb.appendChild(fb); } };
+        image.src = previewInfo.primary; thumb.appendChild(image);
+        const title = document.createElement('span'); title.className = 'scene-card-title'; title.textContent = displayName;
+        card.appendChild(thumb); card.appendChild(title);
+        card.addEventListener('click', async () => {
+          if (card.classList.contains('is-loading')) return;
+          const rid = ++sceneSelectionRequestId; card.classList.add('is-loading');
+          try { await handleSceneSelection(fullDir, [previewInfo.primary], rid); } finally { if (rid === sceneSelectionRequestId) card.classList.remove('is-loading'); }
+        });
+        scenePreviewGridEl.appendChild(card);
+      }
+      syncScenePreviewSelection(); updateSceneNavButtons();
+    }
+
+    async function refreshDirectoryDropdown() {
+      setScenePreviewStatus(t('loadingScenePreviews'));
+      try {
+        const dirs = await discoverSubdirectories();
+        await setScenePreviewCards('/', dirs);
+      } catch (e) {
+        console.error('Directory discovery failed:', e);
+        setScenePreviewStatus(t('scenePreviewsUnavailable'));
+      }
+    }
+
+    // ── Cache All ────────────────────────────────────────────────────────
+    async function cacheAllScenes() {
+      const dirs = await discoverSubdirectories();
+      const targets = dirs.map(name => normalizeDirectoryUrl(`/${name}/`));
+      if (!targets.length) { setCacheButtonState({ label: t('noScenesFound'), progress: 0, disabled: false }); return; }
+      setCacheButtonState({ label: t('cachingProgress', { done: 0, total: targets.length }), progress: 0, disabled: true, isCaching: true });
+      let done = 0;
+      await runConcurrentTasks(targets.length, 2, async (i) => {
+        try {
+          const norm = targets[i]; const urls = await discoverSplatFiles(norm);
+          if (urls.length) { const fl = createSceneFramesFromUrls(urls); await runConcurrentTasks(fl.length, 2, async (j) => { await ensureFrameBytes(j, fl); }); sceneCache.set(getSceneCacheKey(norm), { dir: norm, frames: fl }); }
+        } catch (e) { console.warn('Cache scene failed:', e); }
+      }, (completed) => { done = completed; setCacheButtonState({ label: t('cachingProgress', { done, total: targets.length }), progress: done / targets.length * 100, disabled: true, isCaching: true }); });
+      cacheButtonIdleLabel = t('cachedProgress', { done, total: targets.length });
+      setCacheButtonState({ label: cacheButtonIdleLabel, progress: 100, disabled: false });
+    }
+
+    cacheAllBtnEl?.addEventListener('click', () => cacheAllScenes());
+
+    // ── Render Loop ──────────────────────────────────────────────────────
+    let lastTime = null, xrElapsedMs = 0, xrLastTs = 0, xrClockInit = false;
+
+    app.on('update', (dt) => {
+      const nowMs = performance.now();
+      const gd = app.graphicsDevice;
+      let renderW = gd.width, renderH = gd.height;
+
+      if (!isVrActive) {
+        const width = frameEl.clientWidth;
+        const height = frameEl.clientHeight;
+        if (width <= 0 || height <= 0) { app.renderNextFrame = false; return; }
+        if (canvasEl.width !== width || canvasEl.height !== height) {
+          app.resizeCanvas(width, height);
+        }
+        renderW = width;
+        renderH = height;
+      }
+      app.renderNextFrame = true;
+
+      // FPS tracking
+      const instantFps = dt > 0 ? 1 / dt : 60;
+      if (debugSmoothedFps == null) debugSmoothedFps = instantFps;
+      else debugSmoothedFps += (instantFps - debugSmoothedFps) * 0.15;
+
+      const fovDeg = Math.round(cameraEntity.camera.fov);
+
+      if (debugVisible && nowMs - debugLastUpdateMs >= 1000) {
+        debugLastUpdateMs = nowMs;
+        const fpsText = Math.round(debugSmoothedFps);
+        if (debugFpsEl) debugFpsEl.textContent = `FPS: ${fpsText}`;
+        if (debugResEl) debugResEl.textContent = `RES: ${renderW}\u00d7${renderH}`;
+        if (debugFovEl) debugFovEl.textContent = `FOV: ${fovDeg}\u00b0`;
+        if (isVrActive) {
+          drawVrDebugHud(fpsText, renderW, renderH, fovDeg);
+        }
+      }
+
+      // VR debug HUD visibility
+      if (isVrActive) {
+        if (debugVisible) {
+          const hudW = 0.32, hudH = 0.15, hudPad = 0.05;
+          vrDebugHud.setLocalPosition(
+            vrWinW / 2 - hudW / 2 - hudPad,
+            -(vrWinH / 2) + hudH / 2 + hudPad,
+            -VR_FRAME_DIST + 0.01
+          );
+          vrDebugHud.setLocalEulerAngles(90, 0, 0);
+          if (!vrDebugHud.enabled) vrDebugHud.enabled = true;
+        } else {
+          if (vrDebugHud.enabled) vrDebugHud.enabled = false;
+        }
+      } else {
+        if (vrDebugHud.enabled) vrDebugHud.enabled = false;
+      }
+
+      // VR frame initialization & playback
+      if (isVrActive) {
+        if (!vrFrameInitialized) {
+          vrInitWaitFrames++;
+          if (vrInitWaitFrames >= 5) {
+            const camPos = cameraEntity.getPosition();
+            vrFrameGroup.setPosition(camPos.x, camPos.y, camPos.z);
+            vrFrameGroup.setEulerAngles(0, 0, 0);
+            localFrame.setPosition(camPos.x, camPos.y, camPos.z);
+            fitVrWindowToSplat();
+            vrFrameInitialized = true;
+            pendingVrRefit = false;
+          }
+        } else if (pendingVrRefit) {
+          fitVrWindowToSplat();
+          pendingVrRefit = false;
+        }
+        if (isPlaying && frames.length > 0 && !isCaching) {
+          if (!xrClockInit) { xrClockInit = true; xrLastTs = nowMs; xrElapsedMs = 0; }
+          else { xrElapsedMs += Math.max(0, Math.min(250, nowMs - xrLastTs)); xrLastTs = nowMs; }
+          const delay = getNextFrameDelayMs(currentIndex, frames);
+          if (!isLoadingFrame && xrElapsedMs >= delay) { xrElapsedMs -= delay; nextFrame().catch(() => {}); }
+        } else { xrClockInit = false; }
+      }
+    });
+
+    // ── Start ────────────────────────────────────────────────────────────
+    app.start();
+    setupVR();
+    refreshDirectoryDropdown();
+    setCacheButtonState({ label: cacheButtonIdleLabel, progress: 0, disabled: false });
+    applyOrbit();
+
+    // Auto-load from URL param
+    const splatURL = params.get('url');
+    if (splatURL) {
+      switchToFrameList(createSceneFramesFromUrls([splatURL]));
+      setViewerSceneTitle(splatURL.split('/').pop());
+    }
+  </script>
+</body>
+</html>

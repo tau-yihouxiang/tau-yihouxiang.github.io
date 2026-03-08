@@ -1,0 +1,13 @@
+{
+  "name": "supersplat-xr",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local SuperSplat 3D Gaussian Splat viewer with VR/AR (WebXR) support",
+  "scripts": {
+    "start": "node server.js",
+    "generate-cert": "mkdir -p .cert && openssl req -x509 -newkey rsa:2048 -keyout .cert/key.pem -out .cert/cert.pem -days 365 -nodes -subj '/CN=localhost'"
+  },
+  "devDependencies": {
+    "puppeteer": "^24.38.0"
+  }
+}
