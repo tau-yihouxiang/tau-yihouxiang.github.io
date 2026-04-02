@@ -1284,27 +1284,46 @@
       }
     }
 
-    /* Narrow viewer (e.g. 9:16): playback + ratio on first row; four action buttons on second row */
+    /* Narrow viewer (e.g. 9:16): two rows only; middle grid track must stay flexible (min-width: 0) */
     @container viewer-stack (max-width: 600px) {
       .controls {
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, max-content) minmax(72px, 1fr) minmax(0, max-content);
         grid-template-rows: auto auto;
         grid-template-areas:
           'narrow-left narrow-prog narrow-rpri'
           'narrow-act narrow-act narrow-act';
         align-items: center;
-        column-gap: 8px;
+        column-gap: 6px;
         row-gap: 8px;
       }
 
       .controls .controls-left {
         grid-area: narrow-left;
+        min-width: 0;
+        gap: 4px;
+      }
+
+      .controls .scene-nav-button {
+        width: 26px;
+        height: 26px;
+      }
+
+      .controls .play-toggle {
+        width: 34px;
+        height: 34px;
       }
 
       .controls .progress-wrap {
         grid-area: narrow-prog;
         min-width: 0;
         width: 100%;
+        max-width: 100%;
+        grid-template-columns: auto minmax(0, 1fr) auto max-content;
+        gap: 4px;
+      }
+
+      .controls .progress {
+        min-width: 0;
       }
 
       .controls .controls-right {
@@ -1315,8 +1334,39 @@
         grid-area: narrow-rpri;
         justify-content: flex-end;
         flex-wrap: nowrap;
-        gap: 6px;
+        gap: 4px;
         min-width: 0;
+      }
+
+      .controls .controls-right-primary > .window-aspect-select {
+        flex: 0 0 auto;
+        width: 68px !important;
+        min-width: 68px !important;
+        max-width: 68px !important;
+        padding: 0 3px !important;
+        font-size: 0.62em;
+      }
+
+      .controls .frame-indicator-actions {
+        display: none !important;
+      }
+
+      .controls .frame-indicator-progress {
+        display: inline-block;
+        min-width: 0;
+        padding: 0 2px;
+        font-size: 0.72em;
+      }
+
+      .controls .time {
+        min-width: 0;
+        font-size: 0.72em;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .controls .caching-percent {
+        min-width: 0;
+        font-size: 0.68em;
       }
 
       .controls .controls-actions-row {
