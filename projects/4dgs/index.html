@@ -3093,6 +3093,11 @@
 
     function extractFrameSequence(name) {
       if (typeof name !== 'string') return null;
+      const lead = name.match(/^(\d+)(?=[_.])/);
+      if (lead) {
+        const parsed = Number(lead[1]);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
       const match = name.match(/(\d+)(?!.*\d)/);
       if (!match) return null;
       const parsed = Number(match[1]);
@@ -4479,17 +4484,20 @@
       fallbackSet.add(`/projects/4dgs/public/${sceneName}/0000.png`);
 
       const sceneUrls = extractSceneUrls(sceneConfig);
+      const splatNameRe = /\.(ply|spz|splat|ksplat|sog)$/i;
       const firstContentUrl = sceneUrls.find((u) => {
         const base = (u.split('/').pop() || '').split('?')[0];
         if (isBackgroundSplatBaseName(base)) return false;
-        return /^\d+\.(ply|spz|splat|ksplat|sog)$/i.test(base);
+        if (!splatNameRe.test(base)) return false;
+        return /^(\d+)(?=[_.])/.test(base) || /^\d+\./.test(base);
       });
       let previewFileName = '0000.png';
       if (firstContentUrl) {
         const base = (firstContentUrl.split('/').pop() || '').split('?')[0];
-        const m = base.match(/^(\d+)\./i);
-        if (m) {
-          previewFileName = `${String(parseInt(m[1], 10)).padStart(4, '0')}.png`;
+        let stem = base.match(/^(\d+)(?=[_.])/);
+        if (!stem) stem = base.match(/^(\d+)\./i);
+        if (stem) {
+          previewFileName = `${String(parseInt(stem[1], 10)).padStart(4, '0')}.png`;
         }
       }
 
