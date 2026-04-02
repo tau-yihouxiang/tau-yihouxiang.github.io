@@ -281,6 +281,7 @@
     }
 
     .scene-preview-grid {
+      --scene-card-thumb-h: calc((180px - 16px) * 9 / 16);
       width: 100%;
       max-width: 760px;
       margin: 0.35rem auto 0.5rem auto;
@@ -338,7 +339,8 @@
 
     .scene-card-thumb {
       width: 100%;
-      aspect-ratio: 16 / 9;
+      height: var(--scene-card-thumb-h);
+      flex-shrink: 0;
       border-radius: 7px;
       overflow: hidden;
       background: rgb(35, 35, 35);
@@ -353,6 +355,15 @@
       height: 100%;
       display: block;
       object-fit: cover;
+    }
+
+    /* Same thumb band height as 16:9 cards; image is a centered 9:16 strip */
+    .scene-card-thumb.is-portrait img {
+      width: calc(var(--scene-card-thumb-h) * 9 / 16);
+      height: 100%;
+      max-width: 100%;
+      object-fit: cover;
+      object-position: center;
     }
 
     .scene-card-thumb-fallback {
@@ -564,9 +575,29 @@
 
     .controls .controls-right {
       min-width: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      row-gap: 8px;
+    }
+
+    .controls .controls-right-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       flex-wrap: wrap;
       justify-content: flex-end;
-      row-gap: 8px;
+      min-width: 0;
+    }
+
+    .controls .controls-actions-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+      justify-content: flex-end;
     }
 
     .controls .controls-right > * {
@@ -785,11 +816,15 @@
       z-index: 1;
       pointer-events: none;
       --viewer-window-padding: clamp(12px, 2vw, 28px);
+      --viewer-aspect-w: 16;
+      --viewer-aspect-h: 9;
       padding: var(--viewer-window-padding);
     }
 
     .viewer-window .viewer-stack {
-      width: min(92vw, 1220px, calc(min(86dvh, 760px) * 16 / 9));
+      container-type: inline-size;
+      container-name: viewer-stack;
+      width: min(92vw, 1220px, calc(min(86dvh, 760px) * var(--viewer-aspect-w) / var(--viewer-aspect-h)));
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -802,7 +837,7 @@
     .viewer-window .window-frame {
       position: relative;
       width: 100%;
-      aspect-ratio: 16 / 9;
+      aspect-ratio: var(--viewer-aspect-w) / var(--viewer-aspect-h);
       height: auto;
       background: #111;
       border: 3px solid rgba(180, 180, 180, 0.75);
@@ -881,16 +916,16 @@
       background-color: rgb(90, 90, 90);
     }
 
-    .controls .controls-right > .music-button.is-inactive,
-    .controls .controls-right > .reset-button.is-inactive,
-    .controls .controls-right > .debug-button.is-inactive {
+    .controls .controls-actions-row > .music-button.is-inactive,
+    .controls .controls-actions-row > .reset-button.is-inactive,
+    .controls .controls-actions-row > .debug-button.is-inactive {
       background-color: rgba(255, 255, 255, 0.06);
       color: rgba(255, 255, 255, 0.55);
     }
 
-    .controls .controls-right > .music-button.is-inactive:hover,
-    .controls .controls-right > .reset-button.is-inactive:hover,
-    .controls .controls-right > .debug-button.is-inactive:hover {
+    .controls .controls-actions-row > .music-button.is-inactive:hover,
+    .controls .controls-actions-row > .reset-button.is-inactive:hover,
+    .controls .controls-actions-row > .debug-button.is-inactive:hover {
       background-color: rgba(255, 255, 255, 0.1);
       color: rgba(255, 255, 255, 0.7);
     }
@@ -905,12 +940,12 @@
       cursor: pointer;
     }
 
-    .controls .controls-right > .speed-select,
-    .controls .controls-right > .import-button,
-    .controls .controls-right > .music-button,
-    .controls .controls-right > .reset-button,
-    .controls .controls-right > .debug-button,
-    .controls .controls-right > #VRButton {
+    .controls .controls-right-primary > .window-aspect-select,
+    .controls .controls-right-primary > .import-button,
+    .controls .controls-actions-row > .music-button,
+    .controls .controls-actions-row > .reset-button,
+    .controls .controls-actions-row > .debug-button,
+    .controls .controls-actions-row > #VRButton {
       min-width: 80px;
       height: 30px;
       padding: 0 6px;
@@ -923,9 +958,9 @@
       font-size: 0.74em;
     }
 
-    .controls .controls-right > .speed-select {
-      width: 80px;
-      max-width: 80px;
+    .controls .controls-right-primary > .window-aspect-select {
+      width: 88px;
+      max-width: 88px;
       box-sizing: border-box;
       text-align: center;
       text-align-last: center;
@@ -952,7 +987,7 @@
       }
 
       .viewer-window .viewer-stack {
-        width: min(96vw, 1220px, calc((100dvh - (var(--viewer-window-padding) * 2) - 72px) * 16 / 9));
+        width: min(96vw, 1220px, calc((100dvh - (var(--viewer-window-padding) * 2) - 72px) * var(--viewer-aspect-w) / var(--viewer-aspect-h)));
         gap: 8px;
       }
 
@@ -1017,26 +1052,25 @@
         gap: 6px 6px;
       }
 
-      /* Keep playback speed readable but significantly narrower. */
-      .controls .controls-right > .speed-select {
-        flex: 0 0 42px !important;
-        min-width: 42px !important;
-        width: 42px !important;
-        max-width: 42px !important;
-        padding: 0 3px !important;
-        font-size: 0.7em;
+      .controls .controls-right-primary > .window-aspect-select {
+        flex: 0 0 76px !important;
+        min-width: 76px !important;
+        width: 76px !important;
+        max-width: 76px !important;
+        padding: 0 4px !important;
+        font-size: 0.68em;
       }
 
-      .controls .controls-right > .music-button,
-      .controls .controls-right > .reset-button,
-      .controls .controls-right > .debug-button,
-      .controls .controls-right > #VRButton {
+      .controls .controls-actions-row > .music-button,
+      .controls .controls-actions-row > .reset-button,
+      .controls .controls-actions-row > .debug-button,
+      .controls .controls-actions-row > #VRButton {
         min-width: 60px;
         padding: 0 3px;
         font-size: 0.7em;
       }
 
-      .controls .controls-right > #VRButton {
+      .controls .controls-actions-row > #VRButton {
         min-width: 60px !important;
       }
     }
@@ -1049,10 +1083,14 @@
 
       .url-row,
       .language-row,
-      .scene-preview-grid,
       .cache-all-button,
       .drop-zone {
         max-width: 100%;
+      }
+
+      .scene-preview-grid {
+        max-width: 100%;
+        --scene-card-thumb-h: calc((168px - 16px) * 9 / 16);
       }
 
       .scene-card {
@@ -1120,12 +1158,12 @@
         padding: 5px 10px;
       }
 
-      .controls .controls-right > .speed-select,
-      .controls .controls-right > .import-button,
-      .controls .controls-right > .music-button,
-      .controls .controls-right > .reset-button,
-      .controls .controls-right > .debug-button,
-      .controls .controls-right > #VRButton {
+      .controls .controls-right-primary > .window-aspect-select,
+      .controls .controls-right-primary > .import-button,
+      .controls .controls-actions-row > .music-button,
+      .controls .controls-actions-row > .reset-button,
+      .controls .controls-actions-row > .debug-button,
+      .controls .controls-actions-row > #VRButton {
         flex: 0 0 auto;
         min-width: 60px;
         width: auto;
@@ -1133,26 +1171,26 @@
         padding: 0 4px;
       }
 
-      .controls .controls-right > .music-button,
-      .controls .controls-right > .reset-button,
-      .controls .controls-right > .debug-button,
-      .controls .controls-right > #VRButton {
+      .controls .controls-actions-row > .music-button,
+      .controls .controls-actions-row > .reset-button,
+      .controls .controls-actions-row > .debug-button,
+      .controls .controls-actions-row > #VRButton {
         font-size: 0.68em;
       }
 
-      .controls .controls-right > #VRButton {
+      .controls .controls-actions-row > #VRButton {
         min-width: 60px !important;
         width: auto !important;
         height: 28px !important;
         padding: 0 4px !important;
       }
 
-      .controls .controls-right > .speed-select {
-        flex: 0 0 42px !important;
-        min-width: 42px !important;
-        width: 42px !important;
-        max-width: 42px !important;
-        padding: 0 3px !important;
+      .controls .controls-right-primary > .window-aspect-select {
+        flex: 0 0 76px !important;
+        min-width: 76px !important;
+        width: 76px !important;
+        max-width: 76px !important;
+        padding: 0 4px !important;
         font-size: 0.68em;
       }
 
@@ -1167,8 +1205,7 @@
         font-size: 0.74em;
       }
 
-      .controls .fov-wrap,
-      .controls .speed-select {
+      .controls .fov-wrap {
         display: none;
       }
 
@@ -1222,28 +1259,86 @@
         gap: 6px;
       }
 
-      .controls .controls-right > .speed-select,
-      .controls .controls-right > .import-button,
-      .controls .controls-right > .music-button,
-      .controls .controls-right > .reset-button,
-      .controls .controls-right > .debug-button,
-      .controls .controls-right > #VRButton {
+      .controls .controls-right-primary > .window-aspect-select,
+      .controls .controls-right-primary > .import-button,
+      .controls .controls-actions-row > .music-button,
+      .controls .controls-actions-row > .reset-button,
+      .controls .controls-actions-row > .debug-button,
+      .controls .controls-actions-row > #VRButton {
         flex: 0 0 auto;
         min-width: 60px;
       }
 
-      .controls .controls-right > .speed-select {
-        flex: 0 0 42px !important;
-        min-width: 42px !important;
-        width: 42px !important;
-        max-width: 42px !important;
-        padding: 0 3px !important;
+      .controls .controls-right-primary > .window-aspect-select {
+        flex: 0 0 76px !important;
+        min-width: 76px !important;
+        width: 76px !important;
+        max-width: 76px !important;
+        padding: 0 4px !important;
         font-size: 0.68em;
       }
 
-      .controls .controls-right > #VRButton {
+      .controls .controls-actions-row > #VRButton {
         width: auto !important;
         min-width: 60px !important;
+      }
+    }
+
+    /* Narrow viewer (e.g. 9:16): playback + ratio on first row; four action buttons on second row */
+    @container viewer-stack (max-width: 600px) {
+      .controls {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-rows: auto auto;
+        grid-template-areas:
+          'narrow-left narrow-prog narrow-rpri'
+          'narrow-act narrow-act narrow-act';
+        align-items: center;
+        column-gap: 8px;
+        row-gap: 8px;
+      }
+
+      .controls .controls-left {
+        grid-area: narrow-left;
+      }
+
+      .controls .progress-wrap {
+        grid-area: narrow-prog;
+        min-width: 0;
+        width: 100%;
+      }
+
+      .controls .controls-right {
+        display: contents;
+      }
+
+      .controls .controls-right-primary {
+        grid-area: narrow-rpri;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .controls .controls-actions-row {
+        grid-area: narrow-act;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        min-width: 0;
+        flex-wrap: wrap;
+        gap: 6px;
+        row-gap: 8px;
+      }
+
+      .controls .controls-actions-row > .music-button,
+      .controls .controls-actions-row > .reset-button,
+      .controls .controls-actions-row > .debug-button,
+      .controls .controls-actions-row > #VRButton {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: none;
+        width: auto;
       }
     }
   </style>
@@ -1335,6 +1430,10 @@
         musicOn: 'Music On',
         musicOff: 'Music Off',
         musicUnavailable: 'No Music',
+        windowAspect: 'Window aspect',
+        aspect169: '16:9',
+        aspect11: '1:1',
+        aspect916: '9:16',
       },
       zh: {
         heroTitle: 'PICO 6DoF 播放器',
@@ -1384,6 +1483,10 @@
         musicOn: '音乐开',
         musicOff: '音乐关',
         musicUnavailable: '无音乐',
+        windowAspect: '窗口比例',
+        aspect169: '16:9 横屏',
+        aspect11: '1:1 正方形',
+        aspect916: '9:16 竖屏',
       },
     };
 
@@ -1393,6 +1496,7 @@
       '少年派': { zh: '少年派', en: 'Life of Pi' },
       '直播美女': { zh: '直播美女', en: 'Live Beauty' },
       '网课': { zh: '网课', en: 'Online Class' },
+      TikTok_Dance: { zh: 'TikTok 舞蹈', en: 'TikTok Dance' },
     };
 
     function t(key, vars = {}) {
@@ -1436,6 +1540,12 @@
         if (!key) return;
         el.setAttribute('title', t(key));
       });
+
+      document.querySelectorAll('option[data-i18n-key]').forEach((el) => {
+        const key = el.dataset.i18nKey;
+        if (!key) return;
+        el.textContent = t(key);
+      });
     }
 
     const sparkCanvasEl = document.querySelector(".spark-canvas");
@@ -1447,15 +1557,15 @@
     const width = frameEl.clientWidth;
     const height = frameEl.clientHeight;
     renderer.setSize(width, height, false);
-    const XR_FRAMEBUFFER_SCALE_FACTOR = 4.0;
+    const XR_FRAMEBUFFER_SCALE_FACTOR = 1.0;
     renderer.xr.setFramebufferScaleFactor(XR_FRAMEBUFFER_SCALE_FACTOR);
 
     // VR mode support
     const localFrame = new THREE.Group();
     scene.add(localFrame);
 
-    const DESKTOP_MAX_STD_DEV = Math.sqrt(3);
-    const VR_MAX_STD_DEV = Math.sqrt(2);
+    const DESKTOP_MAX_STD_DEV = Math.sqrt(5);
+    const VR_MAX_STD_DEV = Math.sqrt(5);
     const spark = new SparkRenderer({ renderer, maxStdDev: DESKTOP_MAX_STD_DEV });
     localFrame.add(spark);
     scene.add(camera);
@@ -1491,6 +1601,46 @@
     const VR_MAX_WIN_W = 3.0;
     const VR_MIN_WIN_H = 0.5;
     const VR_MAX_WIN_H = 1.8;
+    const VIEWER_ASPECT_STORAGE_KEY = 'pico-viewer-window-aspect';
+    const VIEWER_ASPECT_MODES = {
+      '16:9': { cssW: 16, cssH: 9 },
+      '1:1': { cssW: 1, cssH: 1 },
+      '9:16': { cssW: 9, cssH: 16 },
+    };
+
+    function normalizeViewerAspectMode(raw) {
+      const v = String(raw ?? '').trim();
+      if (v === '1:1' || v === '1/1') return '1:1';
+      if (v === '9:16' || v === '9/16') return '9:16';
+      return '16:9';
+    }
+
+    let viewerAspectMode = '16:9';
+    try {
+      viewerAspectMode = normalizeViewerAspectMode(localStorage.getItem(VIEWER_ASPECT_STORAGE_KEY));
+    } catch {
+    }
+
+    function getViewerAspectRatioNumber() {
+      const m = VIEWER_ASPECT_MODES[viewerAspectMode] || VIEWER_ASPECT_MODES['16:9'];
+      return m.cssW / m.cssH;
+    }
+
+    function getDefaultVrWindowDimensions() {
+      const area = DEFAULT_WIN_W * DEFAULT_WIN_H;
+      const r = getViewerAspectRatioNumber();
+      return { w: Math.sqrt(area * r), h: Math.sqrt(area / r) };
+    }
+
+    function syncViewerWindowAspectCss() {
+      const m = VIEWER_ASPECT_MODES[viewerAspectMode] || VIEWER_ASPECT_MODES['16:9'];
+      const vw = document.querySelector('.viewer-window');
+      if (vw) {
+        vw.style.setProperty('--viewer-aspect-w', String(m.cssW));
+        vw.style.setProperty('--viewer-aspect-h', String(m.cssH));
+      }
+    }
+
     const AVP_VR_WINDOW_Y_OFFSET = 1.2;
     let isCurrentXrSessionAvp = false;
 
@@ -1648,7 +1798,10 @@
 
     }
 
-    drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
+    (() => {
+      const d = getDefaultVrWindowDimensions();
+      drawVrWindowMask(d.w, d.h);
+    })();
 
     // ── VR debug HUD (3D plane in the playback window) ─────────────────────────
     const VR_HUD_CW = 1536;
@@ -1722,7 +1875,10 @@
 
     function fitVrWindowToSplat() {
       if (!loadedSplat) {
-        drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
+        (() => {
+          const d = getDefaultVrWindowDimensions();
+          drawVrWindowMask(d.w, d.h);
+        })();
         return;
       }
 
@@ -1730,7 +1886,10 @@
 
       vrBounds.setFromObject(loadedSplat);
       if (vrBounds.isEmpty()) {
-        drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
+        (() => {
+          const d = getDefaultVrWindowDimensions();
+          drawVrWindowMask(d.w, d.h);
+        })();
         return;
       }
 
@@ -1758,12 +1917,37 @@
 
       const spanX = Math.max(1e-4, maxX - minX);
       const spanY = Math.max(1e-4, maxY - minY);
-      const desiredW = spanX * VR_TARGET_VISIBLE_AXIS;
-      const desiredH = spanY * VR_TARGET_VISIBLE_AXIS;
+      let desiredW = spanX * VR_TARGET_VISIBLE_AXIS;
+      let desiredH = spanY * VR_TARGET_VISIBLE_AXIS;
+      const targetAr = getViewerAspectRatioNumber();
+      const ar = desiredW / desiredH;
+      if (ar > targetAr) {
+        desiredH = desiredW / targetAr;
+      } else {
+        desiredW = desiredH * targetAr;
+      }
       drawVrWindowMask(desiredW, desiredH);
 
       // Recenter once more after changing aperture size.
       centerSplatInVrWindow();
+    }
+
+    function setViewerAspectMode(mode) {
+      viewerAspectMode = normalizeViewerAspectMode(mode);
+      syncViewerWindowAspectCss();
+      try {
+        localStorage.setItem(VIEWER_ASPECT_STORAGE_KEY, viewerAspectMode);
+      } catch {
+      }
+      resize();
+      if (renderer.xr.isPresenting) {
+        if (loadedSplat) {
+          fitVrWindowToSplat();
+        } else {
+          const d = getDefaultVrWindowDimensions();
+          drawVrWindowMask(d.w, d.h);
+        }
+      }
     }
 
     let shouldResetViewAfterVrExit = false;
@@ -1819,7 +2003,10 @@
       localFrame.position.set(0, vrContentBaseYOffset, 0);
       localFrame.rotation.set(0, 0, 0);
       localFrame.scale.set(1, 1, 1);
-      drawVrWindowMask(DEFAULT_WIN_W, DEFAULT_WIN_H);
+      (() => {
+        const d = getDefaultVrWindowDimensions();
+        drawVrWindowMask(d.w, d.h);
+      })();
       pendingVrRefit = true;
       stopPlayback();
       resetXrPlaybackClock();
@@ -1913,6 +2100,44 @@
     let initialOrbitPitch = 0;
     let initialOrbitDistance = 1.5;
     let hasInitialOrbit = false;
+    /** Last applied portrait/wide orbit scale; used to adjust distance when aspect changes. */
+    let lastOrbitAspectScale = 1;
+    /** Reference canvas aspect (width/height); narrower viewports get a farther camera. */
+    const ORBIT_FRAMING_REF_ASPECT = 16 / 9;
+    /** Extra pull-back on narrow (portrait) canvases (target: full-scene framing like wide mode). */
+    const ORBIT_PORTRAIT_BOOST = 4.14;
+    const ORBIT_PORTRAIT_SCALE_MAX = 18;
+
+    function getOrbitDistanceAspectScale() {
+      const ar = camera.aspect;
+      if (!Number.isFinite(ar) || ar <= 0) return 1;
+      if (ar >= ORBIT_FRAMING_REF_ASPECT - 1e-6) return 1;
+      const base = ORBIT_FRAMING_REF_ASPECT / Math.max(ar, 0.25);
+      return Math.min(ORBIT_PORTRAIT_SCALE_MAX, base * ORBIT_PORTRAIT_BOOST);
+    }
+
+    /** Widen effective vertical FOV on portrait canvas (Three.js FOV is vertical). */
+    function getPortraitFovScale() {
+      if (renderer.xr.isPresenting) return 1;
+      const ar = camera.aspect;
+      if (!Number.isFinite(ar) || ar <= 0) return 1;
+      if (ar >= ORBIT_FRAMING_REF_ASPECT - 1e-6) return 1;
+      const t = 1 - ar / ORBIT_FRAMING_REF_ASPECT;
+      return 1 + 0.522 * THREE.MathUtils.clamp(t, 0, 1);
+    }
+
+    let fovUserDegrees = 30;
+
+    function applyCameraFovForAspect() {
+      if (renderer.xr.isPresenting) {
+        camera.fov = THREE.MathUtils.clamp(fovUserDegrees, 10, 90);
+        camera.updateProjectionMatrix();
+        return;
+      }
+      const mul = getPortraitFovScale();
+      camera.fov = THREE.MathUtils.clamp(fovUserDegrees * mul, 10, 90);
+      camera.updateProjectionMatrix();
+    }
     const spatialKeyState = {
       turnLeft: false,
       turnRight: false,
@@ -2254,7 +2479,9 @@
       orbitTarget.copy(initialOrbitTarget);
       orbitYaw = initialOrbitYaw;
       orbitPitch = initialOrbitPitch;
-      orbitDistance = initialOrbitDistance;
+      const sc = getOrbitDistanceAspectScale();
+      orbitDistance = initialOrbitDistance * sc;
+      lastOrbitAspectScale = sc;
       applyOrbit();
       lastCameraPos.copy(camera.position);
       if (motionState.enabled) {
@@ -2300,12 +2527,31 @@
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
       }
+
+      if (hasInitialOrbit && !renderer.xr.isPresenting && width > 0 && height > 0) {
+        const newSc = getOrbitDistanceAspectScale();
+        const prev = lastOrbitAspectScale;
+        if (Number.isFinite(prev) && prev > 1e-6) {
+          orbitDistance *= newSc / prev;
+        }
+        lastOrbitAspectScale = newSc;
+        applyOrbit();
+        lastCameraPos.copy(camera.position);
+      } else if (width > 0 && height > 0) {
+        lastOrbitAspectScale = getOrbitDistanceAspectScale();
+      }
+
+      if (!renderer.xr.isPresenting) {
+        applyCameraFovForAspect();
+      }
     }
 
     const resizeObserver = new ResizeObserver(() => {
       setTimeout(function () { resize(); }, 50);
     });
     resizeObserver.observe(frameEl);
+    syncViewerWindowAspectCss();
+    resize();
 
     const SHORT_MAX_FRAMES = 16;
     const MEDIUM_MAX_FRAMES = 32;
@@ -2412,7 +2658,6 @@
     let currentIndex = 0;
     let isPlaying = false;
     let fps = 30;
-    let speedMultiplier = 1;
     let isLoadingFrame = false;
     let playbackTimer = null;
     let isCaching = false;
@@ -2436,7 +2681,7 @@
     const progressEl = document.querySelector('.progress');
     const timeCurrentEl = document.querySelector('.time-current');
     const timeTotalEl = document.querySelector('.time-total');
-    const speedSelect = document.querySelector('.speed-select');
+    const windowAspectSelect = document.querySelector('.window-aspect-select');
     const musicBtn = document.querySelector('.music-button');
     const resetBtn = document.querySelector('.reset-button');
     const viewerCloseBtn = document.querySelector('.viewer-close-button');
@@ -2447,6 +2692,7 @@
     const fovSlider = document.querySelector('.fov-slider');
     const fovValue = document.querySelector('.fov-value');
     const controlsRightEl = document.querySelector('.controls-right');
+    const controlsActionsRowEl = document.querySelector('.controls-actions-row');
     const prevSceneBtn = document.querySelector('.prev-scene-button');
     const nextSceneBtn = document.querySelector('.next-scene-button');
     const debugBtn = document.querySelector('.debug-button');
@@ -2457,6 +2703,10 @@
     const languageSelectEl = document.querySelector('.language-select');
 
     applyStaticI18n();
+
+    if (windowAspectSelect) {
+      windowAspectSelect.value = viewerAspectMode;
+    }
 
     if (languageSelectEl) {
       languageSelectEl.value = UI_LANG;
@@ -2483,7 +2733,9 @@
       vrButton.style.zIndex = '3';
       vrButton.setAttribute('aria-label', t('enterVr'));
       vrButton.setAttribute('title', t('enterVr'));
-      if (controlsRightEl) {
+      if (controlsActionsRowEl) {
+        controlsActionsRowEl.appendChild(vrButton);
+      } else if (controlsRightEl) {
         controlsRightEl.appendChild(vrButton);
       } else {
         document.body.appendChild(vrButton);
@@ -2625,6 +2877,18 @@
       return parts[parts.length - 1] || '';
     }
 
+    function isPortraitSceneDirectory(dirUrl) {
+      return getSceneNameFromDirectory(dirUrl) === 'TikTok_Dance';
+    }
+
+    function applyViewerAspectForSceneDirectory(dirUrl) {
+      const mode = isPortraitSceneDirectory(dirUrl) ? '9:16' : '16:9';
+      setViewerAspectMode(mode);
+      if (windowAspectSelect) {
+        windowAspectSelect.value = mode;
+      }
+    }
+
     function buildMusicCandidatesForScene(sceneName) {
       const candidates = [];
       const sceneMusic = SCENE_MUSIC_FILE_BY_NAME[sceneName];
@@ -2764,11 +3028,10 @@
     }
 
     function updateFov(value) {
-      const nextFov = Math.min(90, Math.max(10, Number(value)));
-      camera.fov = nextFov;
-      camera.updateProjectionMatrix();
-      fovValue.textContent = `${Math.round(nextFov)}°`;
-      fovSlider.value = String(nextFov);
+      fovUserDegrees = THREE.MathUtils.clamp(Number(value), 10, 90);
+      applyCameraFovForAspect();
+      if (fovSlider) fovSlider.value = String(Math.round(fovUserDegrees));
+      if (fovValue) fovValue.textContent = `${Math.round(fovUserDegrees)}°`;
     }
 
     function formatTime(seconds) {
@@ -2818,7 +3081,7 @@
     function getNextFrameDelayMs(index, frameList = frames) {
       const total = frameList.length;
       if (total <= 1) {
-        return 1000 / (fps * Math.max(speedMultiplier, 0.001));
+        return 1000 / fps;
       }
 
       const currentUnits = getFrameTimeUnits(index, frameList);
@@ -2834,8 +3097,7 @@
         deltaUnits += cycleUnits;
       }
 
-      const safeSpeed = Math.max(speedMultiplier, 0.001);
-      const delayMs = (1000 * deltaUnits) / (fps * safeSpeed);
+      const delayMs = (1000 * deltaUnits) / fps;
       return Math.max(1, delayMs);
     }
 
@@ -2965,6 +3227,8 @@
         const mesh = await ensureFrameMesh(currentIndex);
         if (!mesh) return;
 
+        await ensureBackgroundSplatMesh(frames);
+
         mesh.visible = true;
         if (loadedSplat && loadedSplat !== mesh) {
           loadedSplat.visible = false;
@@ -2980,6 +3244,10 @@
           initialOrbitYaw = orbitYaw;
           initialOrbitPitch = orbitPitch;
           initialOrbitDistance = orbitDistance;
+          const sc = getOrbitDistanceAspectScale();
+          orbitDistance = initialOrbitDistance * sc;
+          lastOrbitAspectScale = sc;
+          applyOrbit();
           hasInitialOrbit = true;
           lastCameraPos.copy(camera.position);
         }
@@ -3243,14 +3511,9 @@
       canvasPointerDownPos = null;
     });
 
-    speedSelect.addEventListener('change', () => {
-      const v = Number(speedSelect.value);
-      if (!Number.isFinite(v) || v <= 0) return;
-      speedMultiplier = v;
-      if (isPlaying) {
-        stopPlayback();
-        startPlayback();
-      }
+    windowAspectSelect?.addEventListener('change', () => {
+      if (!windowAspectSelect) return;
+      setViewerAspectMode(windowAspectSelect.value);
     });
 
     fovSlider.addEventListener('input', () => {
@@ -3274,7 +3537,7 @@
       await returnToImportInterface();
     });
 
-    updateFov(camera.fov);
+    updateFov(30);
 
     let lastAnimationTimeMs = null;
 
@@ -3434,7 +3697,7 @@
       return `${normalized}::${maxFramesMode}`;
     }
 
-    function createSceneFramesFromUrls(urls) {
+    function createSceneFramesFromUrls(urls, bgUrl = null) {
       return limitFrames(urls).map((u, index) => {
         const name = u.split('/').pop().split('?')[0];
         const parsed = extractFrameSequence(name);
@@ -3447,8 +3710,92 @@
           mesh: null,
           meshPromise: null,
           bytesPromise: null,
+          bgUrl: bgUrl || null,
+          bgFile: null,
         };
       });
+    }
+
+    let cachedBgPlyUrl = null;
+    let cachedBgPlyBytesPromise = null;
+    let cachedBgFileKey = null;
+    let cachedBgFileBytes = null;
+
+    function resetBgPlyCache() {
+      cachedBgPlyUrl = null;
+      cachedBgPlyBytesPromise = null;
+      cachedBgFileKey = null;
+      cachedBgFileBytes = null;
+    }
+
+    async function fetchBgPlyBytes(url) {
+      if (cachedBgPlyUrl === url && cachedBgPlyBytesPromise) {
+        return cachedBgPlyBytesPromise;
+      }
+      cachedBgPlyUrl = url;
+      cachedBgPlyBytesPromise = (async () => {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return new Uint8Array(await resp.arrayBuffer());
+      })();
+      return cachedBgPlyBytesPromise;
+    }
+
+    async function getBgPlyBytesFromFile(bgFile) {
+      const key = `${bgFile.name}:${bgFile.size}:${bgFile.lastModified}`;
+      if (cachedBgFileKey === key && cachedBgFileBytes) {
+        return cachedBgFileBytes;
+      }
+      cachedBgFileKey = key;
+      cachedBgFileBytes = new Uint8Array(await bgFile.arrayBuffer());
+      return cachedBgFileBytes;
+    }
+
+    let backgroundSplatMesh = null;
+    let backgroundSplatKey = null;
+
+    function releaseBackgroundSplat() {
+      if (backgroundSplatMesh) {
+        backgroundSplatMesh.visible = false;
+        backgroundSplatMesh.parent?.remove(backgroundSplatMesh);
+        if (typeof backgroundSplatMesh.dispose === 'function') {
+          backgroundSplatMesh.dispose();
+        }
+        backgroundSplatMesh = null;
+      }
+      backgroundSplatKey = null;
+    }
+
+    async function ensureBackgroundSplatMesh(frameList = frames) {
+      const sample = Array.isArray(frameList) ? frameList.find((f) => f && (f.bgUrl || f.bgFile)) : null;
+      if (!sample) {
+        releaseBackgroundSplat();
+        return;
+      }
+      const key = sample.bgUrl
+        ? `url:${sample.bgUrl}`
+        : `file:${sample.bgFile.name}:${sample.bgFile.size}:${sample.bgFile.lastModified}`;
+      if (backgroundSplatMesh && backgroundSplatKey === key) {
+        backgroundSplatMesh.visible = true;
+        return;
+      }
+      releaseBackgroundSplat();
+      backgroundSplatKey = key;
+      const bytes = sample.bgUrl
+        ? await fetchBgPlyBytes(sample.bgUrl)
+        : await getBgPlyBytesFromFile(sample.bgFile);
+      const bgLabel = sample.bgUrl
+        ? getBaseName(sample.bgUrl.split('?')[0])
+        : getBaseName(sample.bgFile.name);
+      const mesh = await setSplatFile({
+        fileBytes: bytes,
+        fileName: bgLabel || 'bg.ply',
+      });
+      mesh.renderOrder = -1;
+      mesh.visible = true;
+      mesh.frustumCulled = false;
+      localFrame.add(mesh);
+      backgroundSplatMesh = mesh;
     }
 
     async function switchToFrameList(nextFrames, {
@@ -3459,6 +3806,8 @@
       viewerPreviewCandidates = [],
     } = {}) {
       cancelCachingTask();
+      resetBgPlyCache();
+      releaseBackgroundSplat();
       const previousFrames = frames;
       frames = nextFrames;
       currentIndex = 0;
@@ -3494,24 +3843,52 @@
       }
     }
 
+    const SPLAT_EXTS = ['.ply', '.spz', '.splat', '.ksplat', '.sog'];
+
+    function isBackgroundSplatBaseName(base) {
+      const lower = String(base || '').toLowerCase();
+      if (!lower.includes('bg')) return false;
+      return SPLAT_EXTS.some((ext) => lower.endsWith(ext));
+    }
+
+    function partitionBgPlyFiles(fileList) {
+      let bgFile = null;
+      const frameFiles = [];
+      for (const f of fileList) {
+        const base = getBaseName(f.name);
+        if (isBackgroundSplatBaseName(base)) {
+          if (!bgFile) bgFile = f;
+        } else {
+          frameFiles.push(f);
+        }
+      }
+      return { bgFile, frameFiles };
+    }
+
     async function loadSplatFiles(files) {
       applySceneMusicByDirectory('');
       const ordered = sortFilesByName(files);
-      const loadedFrames = limitFrames(ordered.map((f) => ({
-        name: f.name,
+      const { bgFile, frameFiles } = partitionBgPlyFiles(ordered);
+      const sequenceFiles = frameFiles.length > 0 ? frameFiles : (bgFile ? [bgFile] : []);
+      if (sequenceFiles.length === 0) return;
+
+      const loadedFrames = limitFrames(sequenceFiles.map((f) => ({
+        name: getBaseName(f.name),
         timeUnits: Number.isFinite(extractFrameSequence(f.name)) ? extractFrameSequence(f.name) : null,
         file: f,
         bytes: null,
         mesh: null,
         meshPromise: null,
         bytesPromise: null,
+        bgUrl: null,
+        bgFile: frameFiles.length > 0 && bgFile ? bgFile : null,
       })));
 
       await switchToFrameList(loadedFrames, {
         warmup: true,
         ensureFirstBytes: true,
       });
-      setViewerSceneTitle(getBaseName(ordered[0]?.name));
+      setViewerSceneTitle(getBaseName(sequenceFiles[0]?.name));
     }
 
     var loadedSplat;
@@ -3718,11 +4095,11 @@
       const cacheKey = getSceneCacheKey(normalized);
       let sceneEntry = sceneCache.get(cacheKey);
       if (!sceneEntry) {
-        const urls = await discoverSplatFiles(normalized);
+        const { frameUrls, bgUrl } = await discoverSplatFiles(normalized);
         if (selectionRequestId != null && selectionRequestId !== sceneSelectionRequestId) return;
         sceneEntry = {
           dir: normalized,
-          frames: createSceneFramesFromUrls(urls),
+          frames: createSceneFramesFromUrls(frameUrls, bgUrl),
         };
         sceneCache.set(cacheKey, sceneEntry);
       }
@@ -3777,7 +4154,6 @@
       return urls;
     }
 
-    const SPLAT_EXTS = ['.ply', '.spz', '.splat', '.ksplat', '.sog'];
     const SCENES_API_URL = './api/scenes';
     const DEFAULT_ASSET_BASE_URL = '';
     let sceneCatalogPromise = null;
@@ -3890,17 +4266,39 @@
       return [];
     }
 
+    function partitionBgPlyUrls(urlList) {
+      let bgUrl = null;
+      const frameUrls = [];
+      for (const u of urlList) {
+        const base = (u.split('/').pop() || '').split('?')[0];
+        if (isBackgroundSplatBaseName(base)) {
+          if (!bgUrl) bgUrl = u;
+        } else {
+          frameUrls.push(u);
+        }
+      }
+      return { bgUrl, frameUrls };
+    }
+
     async function discoverSplatFiles(dirUrl) {
       const key = normalizeCatalogKey(dirUrl);
       const catalog = await loadSceneCatalog();
       const sceneConfig = catalog[key];
-      if (!sceneConfig) return [];
-      const urls = extractSceneUrls(sceneConfig).filter(url => {
+      if (!sceneConfig) return { frameUrls: [], bgUrl: null };
+      const mappedUrls = extractSceneUrls(sceneConfig).map(url => {
+        // Keep current scenes untouched; only migrate Online Class from .sog to .ply.
+        if (key === '网课' && typeof url === 'string') {
+          return url.replace(/\.sog$/i, '.ply');
+        }
+        return url;
+      });
+      const urls = mappedUrls.filter(url => {
         if (typeof url !== 'string') return false;
         const lower = url.toLowerCase();
         return SPLAT_EXTS.some(ext => lower.endsWith(ext));
       });
-      return limitFrames(urls);
+      const { bgUrl, frameUrls } = partitionBgPlyUrls(urls);
+      return { frameUrls: limitFrames(frameUrls), bgUrl };
     }
 
     const urlDirSelectEl = document.querySelector('.url-dir-select');
@@ -4025,20 +4423,43 @@
 
     function getScenePreviewInfo(sceneName, sceneConfig) {
       const sceneFolderBase = rewriteSceneAssetUrl(`/public/${sceneName}/`);
-      const defaultPreviewUrl = `${sceneFolderBase}0000.png`;
       const fallbackSet = new Set();
       fallbackSet.add(`./public/${sceneName}/0000.png`);
       fallbackSet.add(`/public/${sceneName}/0000.png`);
       fallbackSet.add(`/projects/4dgs/public/${sceneName}/0000.png`);
 
       const sceneUrls = extractSceneUrls(sceneConfig);
-      let primaryPreviewUrl = defaultPreviewUrl;
-      if (sceneUrls.length > 0) {
-        const inferredPreview = replaceUrlFilename(sceneUrls[0], '0000.png');
+      const firstContentUrl = sceneUrls.find((u) => {
+        const base = (u.split('/').pop() || '').split('?')[0];
+        if (isBackgroundSplatBaseName(base)) return false;
+        return /^\d+\.(ply|spz|splat|ksplat|sog)$/i.test(base);
+      });
+      let previewFileName = '0000.png';
+      if (firstContentUrl) {
+        const base = (firstContentUrl.split('/').pop() || '').split('?')[0];
+        const m = base.match(/^(\d+)\./i);
+        if (m) {
+          previewFileName = `${String(parseInt(m[1], 10)).padStart(4, '0')}.png`;
+        }
+      }
+
+      let primaryPreviewUrl = `${sceneFolderBase}${previewFileName}`;
+      if (firstContentUrl) {
+        const inferredPreview = replaceUrlFilename(firstContentUrl, previewFileName);
         if (inferredPreview) {
           primaryPreviewUrl = inferredPreview;
           const inferredFallbacks = getFallbackAssetUrls(inferredPreview);
           for (const candidate of inferredFallbacks) {
+            fallbackSet.add(candidate);
+          }
+        }
+      }
+
+      if (previewFileName !== '0000.png' && firstContentUrl) {
+        const alt0000 = replaceUrlFilename(firstContentUrl, '0000.png');
+        if (alt0000) {
+          fallbackSet.add(alt0000);
+          for (const candidate of getFallbackAssetUrls(alt0000)) {
             fallbackSet.add(candidate);
           }
         }
@@ -4082,6 +4503,7 @@
       const activeRequestId = requestId ?? (++sceneSelectionRequestId);
       setSceneSwitching(true);
       selectedSceneDirectory = normalized;
+      applyViewerAspectForSceneDirectory(normalized);
       applySceneMusicByDirectory(normalized);
       updateSceneNavButtons();
       setViewerSceneTitle(getDirectoryDisplayName(normalized));
@@ -4171,6 +4593,9 @@
 
         const thumb = document.createElement('div');
         thumb.className = 'scene-card-thumb';
+        if (name === 'TikTok_Dance') {
+          thumb.classList.add('is-portrait');
+        }
 
         const image = document.createElement('img');
         image.alt = `${displayName} preview`;
@@ -4225,10 +4650,17 @@
       if (normalized !== '/') return [];
       const catalog = await loadSceneCatalog();
       const sceneNames = Object.keys(catalog);
-      const pinnedScene = '网课';
+      const firstPinned = 'TikTok_Dance';
+      const secondPinned = '网课';
+      const sceneSortRank = (name) => {
+        if (name === firstPinned) return 0;
+        if (name === secondPinned) return 1;
+        return 2;
+      };
       return sceneNames.sort((a, b) => {
-        if (a === pinnedScene && b !== pinnedScene) return -1;
-        if (b === pinnedScene && a !== pinnedScene) return 1;
+        const ra = sceneSortRank(a);
+        const rb = sceneSortRank(b);
+        if (ra !== rb) return ra - rb;
         return 0;
       });
     }
@@ -4318,14 +4750,14 @@
           const cacheKey = getSceneCacheKey(normalized);
           // Use in-memory cache first so returning to import is instant.
           if (!sceneCache.has(cacheKey)) {
-            const urls = await discoverSplatFiles(normalized);
-            if (urls.length === 0) {
+            const { frameUrls, bgUrl } = await discoverSplatFiles(normalized);
+            if (frameUrls.length === 0) {
               alert(t('noSplatFilesAtUrl'));
               return false;
             }
             sceneCache.set(cacheKey, {
               dir: normalized,
-              frames: createSceneFramesFromUrls(urls),
+              frames: createSceneFramesFromUrls(frameUrls, bgUrl),
             });
           }
           await loadSceneByDirectory(normalized, {
@@ -4355,8 +4787,8 @@
     async function cacheDirectoryScene(dirUrl) {
       const normalized = normalizeDirectoryUrl(dirUrl);
       const cacheKey = getSceneCacheKey(normalized);
-      const urls = await discoverSplatFiles(normalized);
-      if (urls.length === 0) return false;
+      const { frameUrls, bgUrl } = await discoverSplatFiles(normalized);
+      if (frameUrls.length === 0) return false;
 
       let sceneEntry = sceneCache.get(cacheKey);
       if (!sceneEntry) {
@@ -4367,10 +4799,10 @@
       }
 
       const existingByUrl = new Map(sceneEntry.frames.map(frame => [frame.url, frame]));
-      sceneEntry.frames = urls.map(url => {
+      sceneEntry.frames = frameUrls.map(url => {
         const existing = existingByUrl.get(url);
         if (existing) return existing;
-        const [nextFrame] = createSceneFramesFromUrls([url]);
+        const [nextFrame] = createSceneFramesFromUrls([url], bgUrl);
         return nextFrame;
       });
       sceneCache.set(cacheKey, sceneEntry);
@@ -4501,22 +4933,24 @@
             <span class="frame-indicator frame-indicator-progress">0/0</span>
           </div>
           <div class="controls-right">
-            <span class="frame-indicator frame-indicator-actions">0/0</span>
-            <select class="speed-select">
-              <option value="0.5">0.5x</option>
-              <option value="1" selected>1x</option>
-              <option value="1.5">1.5x</option>
-              <option value="2">2x</option>
-              <option value="3">3x</option>
-            </select>
-            <div class="fov-wrap">
-              <span class="fov-label">FOV</span>
-              <input class="fov-slider" type="range" min="10" max="90" step="1" value="30" />
-              <span class="fov-value">30°</span>
+            <div class="controls-right-primary">
+              <span class="frame-indicator frame-indicator-actions">0/0</span>
+              <select class="window-aspect-select" data-i18n-aria-label="windowAspect" aria-label="Window aspect">
+                <option value="16:9" data-i18n-key="aspect169" selected>16:9</option>
+                <option value="1:1" data-i18n-key="aspect11">1:1</option>
+                <option value="9:16" data-i18n-key="aspect916">9:16</option>
+              </select>
+              <div class="fov-wrap">
+                <span class="fov-label">FOV</span>
+                <input class="fov-slider" type="range" min="10" max="90" step="1" value="30" />
+                <span class="fov-value">30°</span>
+              </div>
             </div>
-            <button class="music-button" type="button" data-i18n-key="musicLabel">Music</button>
-            <button class="reset-button" data-i18n-key="spatialLabel">Spatial</button>
-            <button class="debug-button" type="button" data-i18n-key="debugLabel">Debug</button>
+            <div class="controls-actions-row">
+              <button class="music-button" type="button" data-i18n-key="musicLabel">Music</button>
+              <button class="reset-button" data-i18n-key="spatialLabel">Spatial</button>
+              <button class="debug-button" type="button" data-i18n-key="debugLabel">Debug</button>
+            </div>
           </div>
         </div>
         <div class="author-credit author-credit-viewer">@author: Tao Hu  |  @version: v0.7.0</div>
