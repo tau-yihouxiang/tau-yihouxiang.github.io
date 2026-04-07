@@ -2895,16 +2895,8 @@
       resetBtn.classList.toggle('is-inactive', !isOn);
     }
 
-    const SCENE_MUSIC_FILE_BY_NAME = {
-      '网课': './public/audio/online-class.mp3',
-      '仓大佬跳舞': './public/audio/cang-dance.mp3',
-      '动物世界': './public/audio/animal-world.mp3',
-      '少年派': './public/audio/life-of-pi.mp3',
-      '直播美女': './public/audio/live-beauty.mp3',
-    };
     const BG_MUSIC_URL_CANDIDATES = [
       './public/audio/bg-music.mp3',
-      './public/audio/background.mp3',
     ];
     const BG_MUSIC_VOLUME = 0.28;
     const audioListener = new THREE.AudioListener();
@@ -2939,9 +2931,15 @@
       }
     }
 
+    function getSceneMusicUrl(sceneName) {
+      const normalized = String(sceneName || '').trim();
+      if (!normalized) return '';
+      return `./public/${normalized}/music.mp3`;
+    }
+
     function buildMusicCandidatesForScene(sceneName) {
       const candidates = [];
-      const sceneMusic = SCENE_MUSIC_FILE_BY_NAME[sceneName];
+      const sceneMusic = getSceneMusicUrl(sceneName);
       if (sceneMusic) candidates.push(sceneMusic);
       for (const fallbackUrl of BG_MUSIC_URL_CANDIDATES) {
         if (!candidates.includes(fallbackUrl)) candidates.push(fallbackUrl);
@@ -3006,7 +3004,7 @@
         backgroundMusicLoadFailed = true;
         isMusicEnabled = false;
         updateMusicButtonUI();
-        console.warn('Background music not found. Add scene mp3 files under ./public/audio/');
+        console.warn('Background music not found. Add music.mp3 to the scene folder or provide ./public/audio/bg-music.mp3.');
         return false;
       })();
       try {
@@ -4485,43 +4483,42 @@
 
       const sceneUrls = extractSceneUrls(sceneConfig);
       const splatNameRe = /\.(ply|spz|splat|ksplat|sog)$/i;
-      const firstContentUrl = sceneUrls.find((u) => {
+      const contentUrls = sceneUrls.filter((u) => {
         const base = (u.split('/').pop() || '').split('?')[0];
         if (isBackgroundSplatBaseName(base)) return false;
         if (!splatNameRe.test(base)) return false;
         return /^(\d+)(?=[_.])/.test(base) || /^\d+\./.test(base);
       });
-      let previewFileName = '0000.png';
-      if (firstContentUrl) {
-        const base = (firstContentUrl.split('/').pop() || '').split('?')[0];
+      const previewCandidates = [];
+      const seenPreviewNames = new Set();
+      for (const contentUrl of contentUrls.slice(0, 4)) {
+        const base = (contentUrl.split('/').pop() || '').split('?')[0];
         let stem = base.match(/^(\d+)(?=[_.])/);
         if (!stem) stem = base.match(/^(\d+)\./i);
-        if (stem) {
-          previewFileName = `${String(parseInt(stem[1], 10)).padStart(4, '0')}.png`;
-        }
-      }
-
-      let primaryPreviewUrl = `${sceneFolderBase}${previewFileName}`;
-      if (firstContentUrl) {
-        const inferredPreview = replaceUrlFilename(firstContentUrl, previewFileName);
+        if (!stem) continue;
+        const previewFileName = `${String(parseInt(stem[1], 10)).padStart(4, '0')}.png`;
+        if (seenPreviewNames.has(previewFileName)) continue;
+        seenPreviewNames.add(previewFileName);
+        const inferredPreview = replaceUrlFilename(contentUrl, previewFileName);
         if (inferredPreview) {
-          primaryPreviewUrl = inferredPreview;
-          const inferredFallbacks = getFallbackAssetUrls(inferredPreview);
-          for (const candidate of inferredFallbacks) {
-            fallbackSet.add(candidate);
-          }
+          previewCandidates.push(inferredPreview);
+        } else {
+          previewCandidates.push(`${sceneFolderBase}${previewFileName}`);
         }
       }
 
-      if (previewFileName !== '0000.png' && firstContentUrl) {
-        const alt0000 = replaceUrlFilename(firstContentUrl, '0000.png');
-        if (alt0000) {
-          fallbackSet.add(alt0000);
-          for (const candidate of getFallbackAssetUrls(alt0000)) {
-            fallbackSet.add(candidate);
-          }
+      if (previewCandidates.length === 0) {
+        previewCandidates.push(`${sceneFolderBase}0000.png`);
+      }
+
+      for (const candidate of previewCandidates) {
+        fallbackSet.add(candidate);
+        for (const fallbackUrl of getFallbackAssetUrls(candidate)) {
+          fallbackSet.add(fallbackUrl);
         }
       }
+
+      const primaryPreviewUrl = previewCandidates[0];
 
       fallbackSet.delete(primaryPreviewUrl);
       return {
