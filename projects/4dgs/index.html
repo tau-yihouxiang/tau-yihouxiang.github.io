@@ -1467,7 +1467,7 @@
     const I18N_TEXT = {
       en: {
         heroTitle: 'PICO 6DoF Player',
-        dragDrop: 'Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat) here',
+        dragDrop: 'Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat) + music (.mp3) here',
         folderList: 'Folder list',
         frameRange: 'Frame range',
         selectFolder: 'Select folder...',
@@ -1520,7 +1520,7 @@
       },
       zh: {
         heroTitle: 'PICO 6DoF 播放器',
-        dragDrop: '将 splat (.ply, .sog, .spz, .splat, .ksplat) 拖拽到这里',
+        dragDrop: '将 splat (.ply, .sog, .spz, .splat, .ksplat) + 音乐 (.mp3) 拖拽到这里',
         folderList: '场景列表',
         frameRange: '帧范围',
         selectFolder: '选择场景...',
@@ -3930,11 +3930,17 @@
     }
 
     const SPLAT_EXTS = ['.ply', '.spz', '.splat', '.ksplat', '.sog'];
+    const AUDIO_EXTS = ['.mp3', '.ogg', '.wav', '.m4a', '.aac'];
 
     function isBackgroundSplatBaseName(base) {
       const lower = String(base || '').toLowerCase();
       if (!lower.includes('bg')) return false;
       return SPLAT_EXTS.some((ext) => lower.endsWith(ext));
+    }
+
+    function isAudioFileName(name) {
+      const lower = String(name || '').toLowerCase();
+      return AUDIO_EXTS.some((ext) => lower.endsWith(ext));
     }
 
     function partitionBgPlyFiles(fileList) {
@@ -3951,9 +3957,47 @@
       return { bgFile, frameFiles };
     }
 
+    function partitionImportedFiles(fileList) {
+      const splatFiles = [];
+      let musicFile = null;
+      for (const f of fileList) {
+        const lower = String(f.name || '').toLowerCase();
+        if (AUDIO_EXTS.some((ext) => lower.endsWith(ext))) {
+          if (!musicFile) musicFile = f;
+        } else if (SPLAT_EXTS.some((ext) => lower.endsWith(ext))) {
+          splatFiles.push(f);
+        }
+      }
+      return { splatFiles, musicFile };
+    }
+
+    async function applyLocalMusicFile(file) {
+      if (!file) return;
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const audioContext = audioListener.context;
+        const buffer = await audioContext.decodeAudioData(arrayBuffer);
+        if (backgroundMusic.isPlaying) {
+          backgroundMusic.stop();
+        }
+        backgroundMusic.setBuffer(buffer);
+        backgroundMusicReady = true;
+        backgroundMusicLoadFailed = false;
+        currentMusicUrl = `local:${file.name}`;
+        isMusicEnabled = true;
+        updateMusicButtonUI();
+      } catch (e) {
+        console.warn('Failed to load local music file:', e);
+      }
+    }
+
     async function loadSplatFiles(files) {
+      const { splatFiles, musicFile } = partitionImportedFiles(files);
       applySceneMusicByDirectory('');
-      const ordered = sortFilesByName(files);
+      if (musicFile) {
+        await applyLocalMusicFile(musicFile);
+      }
+      const ordered = sortFilesByName(splatFiles);
       const { bgFile, frameFiles } = partitionBgPlyFiles(ordered);
       const sequenceFiles = frameFiles.length > 0 ? frameFiles : (bgFile ? [bgFile] : []);
       if (sequenceFiles.length === 0) return;
@@ -5060,8 +5104,8 @@
           </select>
         </div>
       </div>
-      <div class="drop-zone" data-i18n-key="dragDrop">Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat) here</div>
-      <input id="file-input" class="hidden" accept=".ply,.spz,.splat,.ksplat,.sog" type="file" multiple />
+      <div class="drop-zone" data-i18n-key="dragDrop">Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat) + music (.mp3) here</div>
+      <input id="file-input" class="hidden" accept=".ply,.spz,.splat,.ksplat,.sog,.mp3,.ogg,.wav,.m4a,.aac" type="file" multiple />
       <form class="url-form">
         <div class="scene-preview-grid" aria-live="polite"></div>
         <div class="url-row">
