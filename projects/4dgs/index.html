@@ -1576,9 +1576,6 @@
     const SCENE_NAME_I18N = {
       '仓大佬跳舞': { zh: '仓大佬跳舞', en: 'Cang Dance' },
       '动物世界': { zh: '动物世界', en: 'Animal World' },
-      '少年派': { zh: '少年派', en: 'Life of Pi' },
-      '直播美女': { zh: '直播美女', en: 'Live Beauty' },
-      '网课': { zh: '网课', en: 'Online Class' },
       TikTok_Dance: { zh: 'TikTok 舞蹈', en: 'TikTok Dance' },
       Cindy: { zh: 'Cindy', en: 'Cindy' },
     };
@@ -4418,14 +4415,7 @@
       const catalog = await loadSceneCatalog();
       const sceneConfig = catalog[key];
       if (!sceneConfig) return { frameUrls: [], bgUrl: null };
-      const mappedUrls = extractSceneUrls(sceneConfig).map(url => {
-        // Keep current scenes untouched; only migrate Online Class from .sog to .ply.
-        if (key === '网课' && typeof url === 'string') {
-          return url.replace(/\.sog$/i, '.ply');
-        }
-        return url;
-      });
-      const urls = mappedUrls.filter(url => {
+      const urls = extractSceneUrls(sceneConfig).filter(url => {
         if (typeof url !== 'string') return false;
         const lower = url.toLowerCase();
         return SPLAT_EXTS.some(ext => lower.endsWith(ext));
@@ -4785,7 +4775,7 @@
       if (normalized !== '/') return [];
       const catalog = await loadSceneCatalog();
       const sceneNames = Object.keys(catalog);
-      const pinnedOrder = ['TikTok_Dance', 'Cindy', '网课'];
+      const pinnedOrder = ['TikTok_Dance', 'Cindy', '动物世界', '仓大佬跳舞'];
       const sceneSortRank = (name) => {
         const idx = pinnedOrder.indexOf(name);
         return idx >= 0 ? idx : pinnedOrder.length;
