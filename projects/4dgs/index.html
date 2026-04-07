@@ -1580,6 +1580,7 @@
       '直播美女': { zh: '直播美女', en: 'Live Beauty' },
       '网课': { zh: '网课', en: 'Online Class' },
       TikTok_Dance: { zh: 'TikTok 舞蹈', en: 'TikTok Dance' },
+      Cindy: { zh: 'Cindy', en: 'Cindy' },
     };
 
     function t(key, vars = {}) {
@@ -2952,8 +2953,10 @@
       return parts[parts.length - 1] || '';
     }
 
+    const PORTRAIT_SCENES = new Set(['TikTok_Dance', 'Cindy']);
+
     function isPortraitSceneDirectory(dirUrl) {
-      return getSceneNameFromDirectory(dirUrl) === 'TikTok_Dance';
+      return PORTRAIT_SCENES.has(getSceneNameFromDirectory(dirUrl));
     }
 
     function applyViewerAspectForSceneDirectory(dirUrl) {
@@ -4725,7 +4728,7 @@
 
         const thumb = document.createElement('div');
         thumb.className = 'scene-card-thumb';
-        if (name === 'TikTok_Dance') {
+        if (PORTRAIT_SCENES.has(name)) {
           thumb.classList.add('is-portrait');
         }
 
@@ -4782,12 +4785,10 @@
       if (normalized !== '/') return [];
       const catalog = await loadSceneCatalog();
       const sceneNames = Object.keys(catalog);
-      const firstPinned = 'TikTok_Dance';
-      const secondPinned = '网课';
+      const pinnedOrder = ['TikTok_Dance', 'Cindy', '网课'];
       const sceneSortRank = (name) => {
-        if (name === firstPinned) return 0;
-        if (name === secondPinned) return 1;
-        return 2;
+        const idx = pinnedOrder.indexOf(name);
+        return idx >= 0 ? idx : pinnedOrder.length;
       };
       return sceneNames.sort((a, b) => {
         const ra = sceneSortRank(a);
