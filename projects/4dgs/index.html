@@ -940,7 +940,6 @@
       cursor: pointer;
     }
 
-    .controls .controls-right-primary > .window-aspect-select,
     .controls .controls-right-primary > .import-button,
     .controls .controls-actions-row > .music-button,
     .controls .controls-actions-row > .reset-button,
@@ -959,8 +958,21 @@
     }
 
     .controls .controls-right-primary > .window-aspect-select {
-      width: 88px;
-      max-width: 88px;
+      height: 30px;
+      padding: 0 6px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      text-align: center;
+      font-size: 0.74em;
+    }
+
+    .controls .controls-right-primary > .window-aspect-select {
+      width: auto;
+      min-width: 0;
+      max-width: none;
       box-sizing: border-box;
       text-align: center;
       text-align-last: center;
@@ -1284,10 +1296,10 @@
       }
     }
 
-    /* Narrow viewer (e.g. 9:16): two rows only; middle grid track must stay flexible (min-width: 0) */
+    /* Narrow viewer (e.g. 9:16): hide total time to free space; aspect select stays on row 1 */
     @container viewer-stack (max-width: 600px) {
       .controls {
-        grid-template-columns: minmax(0, max-content) minmax(72px, 1fr) minmax(0, max-content);
+        grid-template-columns: minmax(0, max-content) minmax(0, 1fr) max-content;
         grid-template-rows: auto auto;
         grid-template-areas:
           'narrow-left narrow-prog narrow-rpri'
@@ -1318,12 +1330,24 @@
         min-width: 0;
         width: 100%;
         max-width: 100%;
-        grid-template-columns: auto minmax(0, 1fr) auto max-content;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         gap: 4px;
       }
 
       .controls .progress {
         min-width: 0;
+      }
+
+      .controls .time-total {
+        display: none;
+      }
+
+      .controls .frame-indicator-progress {
+        display: inline-block;
+        min-width: 0;
+        padding: 0;
+        font-size: 0.7em;
+        white-space: nowrap;
       }
 
       .controls .controls-right {
@@ -1340,22 +1364,19 @@
 
       .controls .controls-right-primary > .window-aspect-select {
         flex: 0 0 auto;
-        width: 68px !important;
-        min-width: 68px !important;
-        max-width: 68px !important;
-        padding: 0 3px !important;
-        font-size: 0.62em;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        padding: 0 6px !important;
+        font-size: 0.74em;
+      }
+
+      .controls .controls-right-primary > .fov-wrap {
+        display: none;
       }
 
       .controls .frame-indicator-actions {
         display: none !important;
-      }
-
-      .controls .frame-indicator-progress {
-        display: inline-block;
-        min-width: 0;
-        padding: 0 2px;
-        font-size: 0.72em;
       }
 
       .controls .time {
@@ -1389,6 +1410,18 @@
         min-width: 0;
         max-width: none;
         width: auto;
+      }
+
+      .controls .controls-actions-row > #VRButton {
+        min-width: 0 !important;
+        width: auto !important;
+        max-width: none !important;
+      }
+
+      .controls .controls-actions-row > #VRButton::before {
+        content: 'VR';
+        font-size: 0.95rem !important;
+        font-weight: 600;
       }
     }
   </style>
@@ -5008,7 +5041,7 @@
             </div>
           </div>
         </div>
-        <div class="author-credit author-credit-viewer">@author: Tao Hu  |  @version: v0.7.0</div>
+        <div class="author-credit author-credit-viewer">@author: Tao Hu  |  @version: v0.8.0</div>
       </div>
     </div>
   </div>
@@ -5045,7 +5078,7 @@
           </button>
         </div>
       </form>
-      <div class="author-credit author-credit-import">@author: Tao Hu  |  @version: v0.7.0</div>
+      <div class="author-credit author-credit-import">@author: Tao Hu  |  @version: v0.8.0</div>
     </div>
   </div>
 </body>
