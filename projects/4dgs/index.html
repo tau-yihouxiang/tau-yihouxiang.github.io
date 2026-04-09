@@ -157,7 +157,7 @@
       min-width: 148px;
     }
 
-    .controls .debug-button.is-active {
+    .controls .ar-button.is-active {
       background: rgba(255, 255, 255, 0.22) !important;
       color: #fff !important;
     }
@@ -902,6 +902,12 @@
       letter-spacing: 0.02em;
     }
 
+    .controls .ar-button {
+      font-size: 0.95rem !important;
+      font-weight: 600 !important;
+      letter-spacing: 0.02em;
+    }
+
     .controls button {
       background-color: rgba(255, 255, 255, 0.12);
       border: none;
@@ -918,14 +924,14 @@
 
     .controls .controls-actions-row > .music-button.is-inactive,
     .controls .controls-actions-row > .reset-button.is-inactive,
-    .controls .controls-actions-row > .debug-button.is-inactive {
+    .controls .controls-actions-row > .ar-button.is-inactive {
       background-color: rgba(255, 255, 255, 0.06);
       color: rgba(255, 255, 255, 0.55);
     }
 
     .controls .controls-actions-row > .music-button.is-inactive:hover,
     .controls .controls-actions-row > .reset-button.is-inactive:hover,
-    .controls .controls-actions-row > .debug-button.is-inactive:hover {
+    .controls .controls-actions-row > .ar-button.is-inactive:hover {
       background-color: rgba(255, 255, 255, 0.1);
       color: rgba(255, 255, 255, 0.7);
     }
@@ -943,7 +949,7 @@
     .controls .controls-right-primary > .import-button,
     .controls .controls-actions-row > .music-button,
     .controls .controls-actions-row > .reset-button,
-    .controls .controls-actions-row > .debug-button,
+    .controls .controls-actions-row > .ar-button,
     .controls .controls-actions-row > #VRButton {
       min-width: 80px;
       height: 30px;
@@ -1075,7 +1081,7 @@
 
       .controls .controls-actions-row > .music-button,
       .controls .controls-actions-row > .reset-button,
-      .controls .controls-actions-row > .debug-button,
+      .controls .controls-actions-row > .ar-button,
       .controls .controls-actions-row > #VRButton {
         min-width: 60px;
         padding: 0 3px;
@@ -1174,7 +1180,7 @@
       .controls .controls-right-primary > .import-button,
       .controls .controls-actions-row > .music-button,
       .controls .controls-actions-row > .reset-button,
-      .controls .controls-actions-row > .debug-button,
+      .controls .controls-actions-row > .ar-button,
       .controls .controls-actions-row > #VRButton {
         flex: 0 0 auto;
         min-width: 60px;
@@ -1185,7 +1191,7 @@
 
       .controls .controls-actions-row > .music-button,
       .controls .controls-actions-row > .reset-button,
-      .controls .controls-actions-row > .debug-button,
+      .controls .controls-actions-row > .ar-button,
       .controls .controls-actions-row > #VRButton {
         font-size: 0.68em;
       }
@@ -1275,7 +1281,7 @@
       .controls .controls-right-primary > .import-button,
       .controls .controls-actions-row > .music-button,
       .controls .controls-actions-row > .reset-button,
-      .controls .controls-actions-row > .debug-button,
+      .controls .controls-actions-row > .ar-button,
       .controls .controls-actions-row > #VRButton {
         flex: 0 0 auto;
         min-width: 60px;
@@ -1404,7 +1410,7 @@
 
       .controls .controls-actions-row > .music-button,
       .controls .controls-actions-row > .reset-button,
-      .controls .controls-actions-row > .debug-button,
+      .controls .controls-actions-row > .ar-button,
       .controls .controls-actions-row > #VRButton {
         flex: 1 1 0;
         min-width: 0;
@@ -1508,7 +1514,9 @@
         disableMotion: 'Disable motion control',
         prevScene: 'Previous scene',
         nextScene: 'Next scene',
-        debugLabel: 'Debug',
+        arLabel: 'AR',
+        enterAr: 'Enter AR',
+        exitAr: 'Exit AR',
         musicLabel: 'Music',
         musicOn: 'Music On',
         musicOff: 'Music Off',
@@ -1561,7 +1569,9 @@
         disableMotion: '关闭体感控制',
         prevScene: '上一个场景',
         nextScene: '下一个场景',
-        debugLabel: '调试',
+        arLabel: 'AR',
+        enterAr: '进入 AR',
+        exitAr: '退出 AR',
         musicLabel: '音乐',
         musicOn: '音乐开',
         musicOff: '音乐关',
@@ -1578,6 +1588,12 @@
       '动物世界': { zh: '动物世界', en: 'Animal World' },
       TikTok_Dance: { zh: 'TikTok 舞蹈', en: 'TikTok Dance' },
       Cindy: { zh: 'Cindy', en: 'Cindy' },
+    };
+    const SCENE_PREVIEW_PRIMARY_BY_SCENE = {
+      TikTok_Dance: '0001.png',
+      Cindy: '0001.png',
+      '动物世界': '0000.png',
+      '仓大佬跳舞': '0000.png',
     };
 
     function t(key, vars = {}) {
@@ -1598,6 +1614,33 @@
       const entry = SCENE_NAME_I18N[key];
       if (!entry) return key;
       return entry[UI_LANG] || entry.en || key;
+    }
+
+    function resolveSceneDirectoryKey(rawName) {
+      const name = String(rawName || '').trim();
+      if (!name) return '';
+      if (Object.prototype.hasOwnProperty.call(SCENE_NAME_I18N, name)) return name;
+      for (const [key, entry] of Object.entries(SCENE_NAME_I18N)) {
+        if (!entry || typeof entry !== 'object') continue;
+        if (entry.en === name || entry.zh === name) return key;
+      }
+      return name;
+    }
+
+    /** Map i18n display folder segments back to real on-disk names (e.g. /TikTok Dance/ or /TikTok%20Dance/ → /TikTok_Dance/). */
+    function fixLocalizedFolderSegmentInUrl(url) {
+      let s = String(url || '');
+      for (const [key, entry] of Object.entries(SCENE_NAME_I18N)) {
+        if (!entry || typeof entry !== 'object') continue;
+        for (const label of [entry.en, entry.zh]) {
+          if (!label || label === key) continue;
+          const plain = `/${label}/`;
+          const encoded = `/${label.replace(/ /g, '%20')}/`;
+          if (s.includes(encoded)) s = s.split(encoded).join(`/${key}/`);
+          if (s.includes(plain)) s = s.split(plain).join(`/${key}/`);
+        }
+      }
+      return s;
     }
 
     function applyStaticI18n() {
@@ -1633,7 +1676,7 @@
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.01, 1000);
     camera.position.set(0, 0, 0);
-    const renderer = new THREE.WebGLRenderer({canvas: sparkCanvasEl, powerPreference: 'high-performance'});
+    const renderer = new THREE.WebGLRenderer({canvas: sparkCanvasEl, powerPreference: 'high-performance', alpha: true});
     const frameEl = document.querySelector('.window-frame');
     const width = frameEl.clientWidth;
     const height = frameEl.clientHeight;
@@ -1814,6 +1857,7 @@
     const vrCorner = new THREE.Vector3();
 
     const FRAME_DIST = 1.5;
+    const AR_TV_SCALE = 1.0; // Inner content window same size as VR mode
     const vrWindowWhiteBoard = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1),
       new THREE.MeshBasicMaterial({
@@ -1877,6 +1921,68 @@
 
       maskTexture.needsUpdate = true;
 
+    }
+
+    // AR TV mode: mask plane is sized to just the TV bezel footprint.
+    // Real AR environment shows through everywhere outside the TV frame.
+    // Thick bezel frames the content like a TV screen floating in space.
+    function drawArTvMask(openW, openH) {
+      const tvW = (Number(openW) || DEFAULT_WIN_W) * AR_TV_SCALE;
+      const tvH = (Number(openH) || DEFAULT_WIN_H) * AR_TV_SCALE;
+      winW = Math.max(VR_MIN_WIN_W * AR_TV_SCALE, Math.min(VR_MAX_WIN_W * AR_TV_SCALE, tvW));
+      winH = Math.max(VR_MIN_WIN_H * AR_TV_SCALE, Math.min(VR_MAX_WIN_H * AR_TV_SCALE, tvH));
+      vrWindowWhiteBoard.scale.set(winW, winH, 1);
+
+      // Bezel thickness: 40% of content size on each side (covers edge artifacts)
+      const bezelW = winW * 0.40;
+      const bezelH = winH * 0.40;
+      const frameW = winW + bezelW * 2;
+      const frameH = winH + bezelH * 2;
+
+      // Scale mask plane to exactly the TV frame footprint (bezel + content)
+      vrWindowMask.scale.set(frameW / MASK_PLANE_W, frameH / MASK_PLANE_H, 1);
+
+      // Map content hole to canvas pixels
+      const holePixW = (winW / frameW) * MASK_CANVAS_W;
+      const holePixH = (winH / frameH) * MASK_CANVAS_H;
+      const holeX = (MASK_CANVAS_W - holePixW) / 2;
+      const holeY = (MASK_CANVAS_H - holePixH) / 2;
+      const holeRad = Math.max(20, Math.min(120, Math.min(holePixW, holePixH) * 0.12));
+      const outerRad = holeRad + Math.min(holeX, holeY) * 0.55;
+
+      maskCtx.clearRect(0, 0, MASK_CANVAS_W, MASK_CANVAS_H);
+
+      // 1) Transparent everywhere → real AR environment shows through outside bezel
+      // (canvas is already transparent after clearRect)
+
+      // 2) Dark TV bezel (full canvas = just the frame footprint)
+      maskCtx.fillStyle = 'rgba(22, 22, 22, 0.97)';
+      roundRect(maskCtx, 0, 0, MASK_CANVAS_W, MASK_CANVAS_H, outerRad);
+      maskCtx.fill();
+
+      // 3) Punch transparent hole for 3DGS content
+      maskCtx.globalCompositeOperation = 'destination-out';
+      maskCtx.fillStyle = '#000';
+      roundRect(maskCtx, holeX, holeY, holePixW, holePixH, holeRad);
+      maskCtx.fill();
+      maskCtx.globalCompositeOperation = 'source-over';
+
+      // 4) Inner highlight ring
+      maskCtx.strokeStyle = 'rgba(200, 200, 200, 0.6)';
+      maskCtx.lineWidth = 4 * (MASK_CANVAS_W / 1600);
+      roundRect(maskCtx, holeX, holeY, holePixW, holePixH, holeRad);
+      maskCtx.stroke();
+
+      maskTexture.needsUpdate = true;
+    }
+
+    // Dispatcher: uses TV mask in AR, normal mask in VR/desktop
+    function drawWindowMask(openW, openH) {
+      if (currentXrMode === 'immersive-ar') {
+        drawArTvMask(openW, openH);
+      } else {
+        drawVrWindowMask(openW, openH);
+      }
     }
 
     (() => {
@@ -1958,7 +2064,7 @@
       if (!loadedSplat) {
         (() => {
           const d = getDefaultVrWindowDimensions();
-          drawVrWindowMask(d.w, d.h);
+          drawWindowMask(d.w, d.h);
         })();
         return;
       }
@@ -1969,7 +2075,7 @@
       if (vrBounds.isEmpty()) {
         (() => {
           const d = getDefaultVrWindowDimensions();
-          drawVrWindowMask(d.w, d.h);
+          drawWindowMask(d.w, d.h);
         })();
         return;
       }
@@ -2007,7 +2113,7 @@
       } else {
         desiredW = desiredH * targetAr;
       }
-      drawVrWindowMask(desiredW, desiredH);
+      drawWindowMask(desiredW, desiredH);
 
       // Recenter once more after changing aperture size.
       centerSplatInVrWindow();
@@ -2026,7 +2132,7 @@
           fitVrWindowToSplat();
         } else {
           const d = getDefaultVrWindowDimensions();
-          drawVrWindowMask(d.w, d.h);
+          drawWindowMask(d.w, d.h);
         }
       }
     }
@@ -2037,6 +2143,8 @@
     let xrPlaybackClockInitialized = false;
     let xrPlaybackLastTimestamp = 0;
     let xrPlaybackElapsedMs = 0;
+    let currentXrMode = null;
+    let arSessionRequested = false;
 
     function resetXrPlaybackClock() {
       xrPlaybackClockInitialized = false;
@@ -2046,12 +2154,17 @@
 
     renderer.xr.addEventListener('sessionstart', () => {
       const xrSession = renderer.xr.getSession();
+      const sessionMode = xrSession?.mode || null;
+      const isAr = arSessionRequested || sessionMode === 'immersive-ar';
+      currentXrMode = isAr ? 'immersive-ar' : sessionMode;
+      arSessionRequested = false;
       isCurrentXrSessionAvp = isLikelyAppleVisionProSession(xrSession);
       const vrWindowBaseYOffset = getVrWindowBaseYOffset();
       const vrContentBaseYOffset = getVrContentBaseYOffset();
       sendClientLog({
         type: 'xr-sessionstart',
         timestamp: Date.now(),
+        xrMode: currentXrMode,
         isCurrentXrSessionAvp,
         vrWindowBaseYOffset,
         vrContentBaseYOffset,
@@ -2068,35 +2181,77 @@
             : null,
         } : null,
       });
-      if (vrButton) {
-        vrButton.setAttribute('aria-label', t('exitVr'));
-        vrButton.setAttribute('title', t('exitVr'));
-      }
+
       spark.maxStdDev = VR_MAX_STD_DEV;
       renderer.xr.setFoveation(1.0);
-      if (debugVisible) debugLastUpdateMs = -Infinity; // force immediate HUD draw
-      vrFrameGroup.visible = true;
-      vrWindowWhiteBoard.visible = true;
-      vrWindowMask.visible = true;
-      vrFrameInitialized = false;
-      vrFrameGroup.position.set(0, vrWindowBaseYOffset, 0);
-      vrFrameGroup.rotation.set(0, 0, 0);
-      localFrame.position.set(0, vrContentBaseYOffset, 0);
-      localFrame.rotation.set(0, 0, 0);
-      localFrame.scale.set(1, 1, 1);
-      (() => {
-        const d = getDefaultVrWindowDimensions();
-        drawVrWindowMask(d.w, d.h);
-      })();
-      pendingVrRefit = true;
+
+      if (currentXrMode === 'immersive-ar') {
+        // AR: same window-frame setup as VR, but transparent background
+        renderer.setClearColor(0x000000, 0);
+        scene.background = null;
+        if (backgroundSplatMesh) backgroundSplatMesh.visible = false;
+        if (arBtn) {
+          arBtn.setAttribute('aria-label', t('exitAr'));
+          arBtn.setAttribute('title', t('exitAr'));
+        }
+        vrFrameGroup.visible = true;
+        vrWindowWhiteBoard.visible = true;
+        vrWindowMask.visible = true;
+        vrFrameInitialized = false;
+        vrFrameGroup.position.set(0, vrWindowBaseYOffset, 0);
+        vrFrameGroup.rotation.set(0, 0, 0);
+        localFrame.position.set(0, vrContentBaseYOffset, 0);
+        localFrame.rotation.set(0, 0, 0);
+        localFrame.scale.set(1, 1, 1);
+        (() => {
+          const d = getDefaultVrWindowDimensions();
+          drawArTvMask(d.w, d.h);
+        })();
+        pendingVrRefit = true;
+      } else {
+        if (vrButton) {
+          vrButton.setAttribute('aria-label', t('exitVr'));
+          vrButton.setAttribute('title', t('exitVr'));
+        }
+        if (debugVisible) debugLastUpdateMs = -Infinity;
+        vrFrameGroup.visible = true;
+        vrWindowWhiteBoard.visible = true;
+        vrWindowMask.visible = true;
+        vrFrameInitialized = false;
+        vrFrameGroup.position.set(0, vrWindowBaseYOffset, 0);
+        vrFrameGroup.rotation.set(0, 0, 0);
+        localFrame.position.set(0, vrContentBaseYOffset, 0);
+        localFrame.rotation.set(0, 0, 0);
+        localFrame.scale.set(1, 1, 1);
+        (() => {
+          const d = getDefaultVrWindowDimensions();
+          drawVrWindowMask(d.w, d.h);
+        })();
+        pendingVrRefit = true;
+      }
+
       stopPlayback();
       resetXrPlaybackClock();
     });
     renderer.xr.addEventListener('sessionend', () => {
-      if (vrButton) {
-        vrButton.setAttribute('aria-label', t('enterVr'));
-        vrButton.setAttribute('title', t('enterVr'));
+      const wasAr = currentXrMode === 'immersive-ar';
+      currentXrMode = null;
+
+      if (wasAr) {
+        renderer.setClearColor(0x000000, 1);
+        if (backgroundSplatMesh) backgroundSplatMesh.visible = true;
+        vrWindowMask.scale.set(1, 1, 1);
+        if (arBtn) {
+          arBtn.setAttribute('aria-label', t('enterAr'));
+          arBtn.setAttribute('title', t('enterAr'));
+        }
+      } else {
+        if (vrButton) {
+          vrButton.setAttribute('aria-label', t('enterVr'));
+          vrButton.setAttribute('title', t('enterVr'));
+        }
       }
+
       spark.maxStdDev = DESKTOP_MAX_STD_DEV;
       vrDebugHudMesh.visible = false;
       vrFrameGroup.visible = false;
@@ -2776,7 +2931,7 @@
     const controlsActionsRowEl = document.querySelector('.controls-actions-row');
     const prevSceneBtn = document.querySelector('.prev-scene-button');
     const nextSceneBtn = document.querySelector('.next-scene-button');
-    const debugBtn = document.querySelector('.debug-button');
+    const arBtn = document.querySelector('.ar-button');
     const debugPanelEl = document.querySelector('.debug-panel');
     const debugFpsEl = debugPanelEl?.querySelector('.debug-fps');
     const debugResEl = debugPanelEl?.querySelector('.debug-resolution');
@@ -2898,20 +3053,27 @@
       }
     }
 
-    if (debugBtn) {
-      const debugLabel = t('debugLabel');
-      debugBtn.textContent = debugLabel;
-      debugBtn.setAttribute('aria-label', debugLabel);
-      debugBtn.setAttribute('title', debugLabel);
-      debugBtn.classList.add('is-inactive');
-      debugBtn.addEventListener('click', () => {
-        debugVisible = !debugVisible;
-        debugBtn.classList.toggle('is-active', debugVisible);
-        debugBtn.classList.toggle('is-inactive', !debugVisible);
-        if (debugPanelEl) debugPanelEl.hidden = !debugVisible;
-        if (debugVisible) {
-          debugLastUpdateMs = -Infinity; // force immediate update
-        }
+    // ── AR mode ────────────────────────────────────────────────────────────
+    if (arBtn) {
+      arBtn.style.display = 'none';
+      arBtn.addEventListener('click', () => { arSessionRequested = true; });
+      new SparkXr({
+        renderer,
+        element: arBtn,
+        mode: 'ar',
+        frameBufferScaleFactor: XR_FRAMEBUFFER_SCALE_FACTOR,
+        sessionInit: {
+          optionalFeatures: ['hit-test', 'dom-overlay', 'local-floor'],
+          domOverlay: { root: document.body },
+        },
+        button: {
+          enterVrText: t('enterAr'),
+          exitVrText: t('exitAr'),
+        },
+        onReady: (supported) => {
+          arBtn.style.display = supported ? '' : 'none';
+          arBtn.setAttribute('aria-hidden', supported ? 'false' : 'true');
+        },
       });
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -3654,9 +3816,10 @@
         }
       }
 
-      const isInVR = renderer.xr.isPresenting;
+      const isInXR = renderer.xr.isPresenting;
+      const isInVR = isInXR;
 
-      if (!isInVR) {
+      if (!isInXR) {
         if (shouldResetViewAfterVrExit) {
           shouldResetViewAfterVrExit = false;
           resetViewState();
@@ -3675,9 +3838,7 @@
           lastCameraPos.copy(camera.position);
         }
       } else {
-        // Keep both frame and 3DGS world-fixed in VR.
-        // Place window once when entering VR so the scene starts centered.
-        // Keep the window plane fixed at world (0, 0, z).
+        // VR: window-frame mode
         if (!vrFrameInitialized) {
           vrFrameGroup.position.set(0, getVrWindowBaseYOffset(), 0);
           localFrame.position.y = getVrContentBaseYOffset();
@@ -4307,8 +4468,11 @@
       if (typeof inputUrl !== 'string' || !ASSET_BASE_URL) return [];
       const normalizedBase = `${ASSET_BASE_URL}/`;
       if (!inputUrl.startsWith(normalizedBase)) return [];
-      const relativePath = inputUrl.slice(normalizedBase.length);
+      let relativePath = inputUrl.slice(normalizedBase.length);
       if (!relativePath) return [];
+      if (relativePath.startsWith('public/')) {
+        relativePath = relativePath.slice('public/'.length);
+      }
       return [
         `./public/${relativePath}`,
         `/public/${relativePath}`,
@@ -4544,12 +4708,104 @@
       return `${pathOnly.slice(0, slashIndex + 1)}${nextFileName}${suffix}`;
     }
 
+    /** Directory prefix of a scene asset URL (from catalog), e.g. public/TikTok_Dance/ — never use localized display names. */
+    function getSceneAssetFolderPrefixFromUrl(url) {
+      if (!url) return '';
+      const { pathOnly } = parseUrlPathParts(String(url));
+      if (!pathOnly) return '';
+      const slash = pathOnly.lastIndexOf('/');
+      if (slash < 0) return '';
+      return pathOnly.slice(0, slash + 1);
+    }
+
+    const SCENE_PREVIEW_IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+
+    /**
+     * Derive preview image filenames from splat URLs (numeric order: 0000.png before 0001.png — folders differ).
+     */
+    function collectScenePreviewImageFilenames(contentUrls) {
+      const splatNameRe = /\.(ply|spz|splat|ksplat|sog)$/i;
+      const numericStems = new Set();
+      let firstStemFull = '';
+      for (const contentUrl of contentUrls) {
+        const base = (contentUrl.split('/').pop() || '').split('?')[0];
+        if (!splatNameRe.test(base)) continue;
+        if (!firstStemFull) {
+          firstStemFull = base.replace(splatNameRe, '');
+        }
+        let m = base.match(/^(\d+)(?=[_.])/);
+        if (!m) m = base.match(/^(\d+)\./);
+        if (m) {
+          numericStems.add(String(parseInt(m[1], 10)).padStart(4, '0'));
+        }
+      }
+      const sortedNums = Array.from(numericStems).sort(
+        (a, b) => parseInt(a, 10) - parseInt(b, 10),
+      );
+      const ordered = [];
+      for (const n of sortedNums) {
+        ordered.push(`${n}.png`);
+      }
+      for (const ext of SCENE_PREVIEW_IMAGE_EXTS) {
+        if (ext === '.png') continue;
+        for (const n of sortedNums) {
+          ordered.push(`${n}${ext}`);
+        }
+      }
+      if (firstStemFull) {
+        for (const ext of SCENE_PREVIEW_IMAGE_EXTS) {
+          ordered.push(`${firstStemFull}${ext}`);
+        }
+      }
+      for (const extra of ['preview.png', 'thumb.png', 'poster.jpg', 'cover.jpg']) {
+        ordered.push(extra);
+      }
+      const seen = new Set();
+      return ordered.filter((name) => {
+        if (seen.has(name)) return false;
+        seen.add(name);
+        return true;
+      });
+    }
+
+    /**
+     * Extra path variants for static hosting; folderPrefix must come from real splat URLs (see getSceneAssetFolderPrefixFromUrl).
+     */
+    function expandPreviewUrlVariants(folderPrefix, url) {
+      const out = [];
+      const push = (u) => {
+        const fixed = fixLocalizedFolderSegmentInUrl(u);
+        if (fixed && !out.includes(fixed)) out.push(fixed);
+      };
+      push(url);
+      for (const fb of getFallbackAssetUrls(fixLocalizedFolderSegmentInUrl(url))) push(fb);
+      const fn = (url.split('/').pop() || '').split('?')[0];
+      if (!fn || !folderPrefix) return out;
+
+      let relPublic = '';
+      if (/^https?:\/\//i.test(folderPrefix)) {
+        try {
+          const dirUrl = folderPrefix.endsWith('/') ? folderPrefix : `${folderPrefix}/`;
+          const u = new URL(dirUrl);
+          relPublic = u.pathname.replace(/^\/+/, '');
+        } catch {
+          return out;
+        }
+      } else {
+        relPublic = folderPrefix.replace(/^\.\//, '').replace(/^\/+/, '');
+      }
+      if (!relPublic.endsWith('/')) relPublic += '/';
+      if (relPublic.startsWith('public/')) {
+        push(`./${relPublic}${fn}`);
+        push(`/${relPublic}${fn}`);
+        push(`/projects/4dgs/${relPublic}${fn}`);
+      }
+      return out;
+    }
+
     function getScenePreviewInfo(sceneName, sceneConfig) {
-      const sceneFolderBase = rewriteSceneAssetUrl(`/public/${sceneName}/`);
-      const fallbackSet = new Set();
-      fallbackSet.add(`./public/${sceneName}/0000.png`);
-      fallbackSet.add(`/public/${sceneName}/0000.png`);
-      fallbackSet.add(`/projects/4dgs/public/${sceneName}/0000.png`);
+      const sceneKey = resolveSceneDirectoryKey(sceneName);
+      const fallbackFolderBase = rewriteSceneAssetUrl(`/public/${sceneKey}/`);
 
       const sceneUrls = extractSceneUrls(sceneConfig);
       const splatNameRe = /\.(ply|spz|splat|ksplat|sog)$/i;
@@ -4559,41 +4815,61 @@
         if (!splatNameRe.test(base)) return false;
         return /^(\d+)(?=[_.])/.test(base) || /^\d+\./.test(base);
       });
-      const previewCandidates = [];
-      const seenPreviewNames = new Set();
-      for (const contentUrl of contentUrls.slice(0, 4)) {
-        const base = (contentUrl.split('/').pop() || '').split('?')[0];
-        let stem = base.match(/^(\d+)(?=[_.])/);
-        if (!stem) stem = base.match(/^(\d+)\./i);
-        if (!stem) continue;
-        const previewFileName = `${String(parseInt(stem[1], 10)).padStart(4, '0')}.png`;
-        if (seenPreviewNames.has(previewFileName)) continue;
-        seenPreviewNames.add(previewFileName);
-        const inferredPreview = replaceUrlFilename(contentUrl, previewFileName);
-        if (inferredPreview) {
-          previewCandidates.push(inferredPreview);
-        } else {
-          previewCandidates.push(`${sceneFolderBase}${previewFileName}`);
+
+      const baseContentUrl = contentUrls[0]
+        || `${String(fallbackFolderBase).replace(/\/?$/, '')}/0000_4d.ply`;
+      let folderPrefix = getSceneAssetFolderPrefixFromUrl(contentUrls[0] || '')
+        || getSceneAssetFolderPrefixFromUrl(baseContentUrl);
+      if (!folderPrefix) folderPrefix = fallbackFolderBase;
+
+      let sortedFilenames = collectScenePreviewImageFilenames(contentUrls);
+      const preferredName = SCENE_PREVIEW_PRIMARY_BY_SCENE[sceneKey];
+      if (preferredName) {
+        sortedFilenames = [preferredName, ...sortedFilenames.filter((n) => n !== preferredName)];
+      }
+      if (sortedFilenames.length === 0) {
+        sortedFilenames = preferredName
+          ? [preferredName, preferredName === '0000.png' ? '0001.png' : '0000.png']
+          : ['0000.png', '0001.png'];
+      }
+
+      const orderedPreviewUrls = [];
+      const seen = new Set();
+      const pushOrdered = (u) => {
+        const fixed = fixLocalizedFolderSegmentInUrl(u);
+        if (!fixed || seen.has(fixed)) return;
+        seen.add(fixed);
+        orderedPreviewUrls.push(fixed);
+      };
+
+      for (const fileName of sortedFilenames) {
+        const fromFrame = replaceUrlFilename(baseContentUrl, fileName);
+        if (fromFrame) {
+          for (const v of expandPreviewUrlVariants(folderPrefix, fromFrame)) {
+            pushOrdered(v);
+          }
+        }
+        const direct = `${String(folderPrefix).replace(/\/?$/, '/')}${fileName}`;
+        if (direct && direct !== fromFrame) {
+          for (const v of expandPreviewUrlVariants(folderPrefix, direct)) {
+            pushOrdered(v);
+          }
         }
       }
 
-      if (previewCandidates.length === 0) {
-        previewCandidates.push(`${sceneFolderBase}0000.png`);
-      }
-
-      for (const candidate of previewCandidates) {
-        fallbackSet.add(candidate);
-        for (const fallbackUrl of getFallbackAssetUrls(candidate)) {
-          fallbackSet.add(fallbackUrl);
-        }
-      }
-
-      const primaryPreviewUrl = previewCandidates[0];
-
-      fallbackSet.delete(primaryPreviewUrl);
+      const fallbackPrimaryName = preferredName || '0000.png';
+      const fallbackSecondaryName = fallbackPrimaryName === '0000.png' ? '0001.png' : '0000.png';
+      const primaryPreviewUrl = orderedPreviewUrls[0]
+        || fixLocalizedFolderSegmentInUrl(
+          `${String(fallbackFolderBase).replace(/\/?$/, '/')}${fallbackPrimaryName}`,
+        )
+        || fixLocalizedFolderSegmentInUrl(
+          `${String(fallbackFolderBase).replace(/\/?$/, '/')}${fallbackSecondaryName}`,
+        );
+      const rest = orderedPreviewUrls.filter((u) => u !== primaryPreviewUrl);
       return {
         primary: primaryPreviewUrl,
-        fallbacks: Array.from(fallbackSet),
+        fallbacks: rest,
       };
     }
 
@@ -4718,7 +4994,7 @@
 
         const thumb = document.createElement('div');
         thumb.className = 'scene-card-thumb';
-        if (PORTRAIT_SCENES.has(name)) {
+        if (PORTRAIT_SCENES.has(resolveSceneDirectoryKey(name))) {
           thumb.classList.add('is-portrait');
         }
 
@@ -5072,7 +5348,7 @@
             <div class="controls-actions-row">
               <button class="music-button" type="button" data-i18n-key="musicLabel">Music</button>
               <button class="reset-button" data-i18n-key="spatialLabel">Spatial</button>
-              <button class="debug-button" type="button" data-i18n-key="debugLabel">Debug</button>
+              <button class="ar-button" type="button" data-i18n-key="arLabel">AR</button>
             </div>
           </div>
         </div>
