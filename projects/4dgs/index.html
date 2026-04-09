@@ -1586,6 +1586,7 @@
     const SCENE_NAME_I18N = {
       '仓大佬跳舞': { zh: '仓大佬跳舞', en: 'Cang Dance' },
       '动物世界': { zh: '动物世界', en: 'Animal World' },
+      '直播美女': { zh: '直播美女', en: 'Live Beauty' },
       TikTok_Dance: { zh: 'TikTok 舞蹈', en: 'TikTok Dance' },
       Cindy: { zh: 'Cindy', en: 'Cindy' },
     };
@@ -1594,6 +1595,7 @@
       Cindy: '0001.png',
       '动物世界': '0000.png',
       '仓大佬跳舞': '0000.png',
+      '直播美女': '0000.png',
     };
 
     function t(key, vars = {}) {
@@ -3157,6 +3159,7 @@
       backgroundMusicLoadFailed = false;
       backgroundMusicLoadPromise = null;
       currentMusicUrl = '';
+      isMusicEnabled = true;
       if (backgroundMusic.isPlaying) {
         backgroundMusic.stop();
       }
