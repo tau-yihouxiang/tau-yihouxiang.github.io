@@ -281,18 +281,22 @@
     }
 
     .scene-preview-grid {
-      --scene-card-thumb-h: calc((180px - 16px) * 9 / 16);
+      --scene-card-w: 182px;
       width: 100%;
       max-width: 760px;
       margin: 0.35rem auto 0.5rem auto;
       display: flex;
       flex-wrap: nowrap;
+      align-items: stretch;
+      justify-content: flex-start;
       gap: 10px;
       overflow-x: auto;
       overflow-y: hidden;
       padding-top: 2px;
       padding-bottom: 4px;
       scroll-behavior: smooth;
+      box-sizing: border-box;
+      -webkit-overflow-scrolling: touch;
     }
 
     .scene-preview-status {
@@ -317,7 +321,12 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      flex: 0 0 180px;
+      flex: 0 0 var(--scene-card-w);
+      width: var(--scene-card-w);
+      min-width: var(--scene-card-w);
+      max-width: var(--scene-card-w);
+      box-sizing: border-box;
+      overflow: hidden;
       transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
     }
 
@@ -339,7 +348,8 @@
 
     .scene-card-thumb {
       width: 100%;
-      height: var(--scene-card-thumb-h);
+      aspect-ratio: 16 / 9;
+      height: auto;
       flex-shrink: 0;
       border-radius: 7px;
       overflow: hidden;
@@ -357,9 +367,9 @@
       object-fit: cover;
     }
 
-    /* Same thumb band height as 16:9 cards; image is a centered 9:16 strip */
+    /* Same thumb band as 16:9; portrait preview is a centered 9:16 strip */
     .scene-card-thumb.is-portrait img {
-      width: calc(var(--scene-card-thumb-h) * 9 / 16);
+      width: calc(100% * 9 / 16 * 9 / 16);
       height: 100%;
       max-width: 100%;
       object-fit: cover;
@@ -378,6 +388,8 @@
       color: rgba(255, 255, 255, 0.92);
       text-align: center;
       word-break: break-word;
+      min-width: 0;
+      width: 100%;
     }
 
     .frame-limit-wrap {
@@ -544,6 +556,8 @@
     }
 
     .controls {
+      --actions-row-width-pix: 9999px;
+      --compact-action-width-pix: 88px;
       position: relative;
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
@@ -565,8 +579,7 @@
       pointer-events: none;
     }
 
-    .controls .controls-left,
-    .controls .controls-right {
+    .controls .controls-left {
       display: inline-flex;
       align-items: center;
       gap: 8px;
@@ -575,33 +588,49 @@
 
     .controls .controls-right {
       min-width: 0;
+      flex-shrink: 1;
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: row;
       align-items: center;
       justify-content: flex-end;
+      flex-wrap: nowrap;
+      width: auto;
+      max-width: 100%;
       gap: 8px;
       row-gap: 8px;
+      box-sizing: border-box;
     }
 
     .controls .controls-right-primary {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+      order: 1;
+      display: flex;
       flex-wrap: wrap;
+      align-items: center;
+      align-content: flex-end;
       justify-content: flex-end;
+      gap: 6px 8px;
       min-width: 0;
+      width: auto;
+      max-width: 100%;
+      flex-shrink: 1;
+      box-sizing: border-box;
     }
 
     .controls .controls-actions-row {
-      display: inline-flex;
+      order: 2;
+      display: flex;
       align-items: center;
       gap: 8px;
       flex-wrap: nowrap;
       justify-content: flex-end;
+      flex-shrink: 0;
+      width: auto;
+      min-width: 0;
+      box-sizing: border-box;
     }
 
     .controls .controls-right > * {
-      flex-shrink: 0;
+      min-width: 0;
     }
 
     .controls .scene-nav-button {
@@ -964,23 +993,21 @@
     }
 
     .controls .controls-right-primary > .window-aspect-select {
+      order: 0;
+      flex: 0 0 auto;
+      width: auto;
+      max-width: 100%;
+      min-width: 5.6rem;
       height: 30px;
-      padding: 0 6px;
+      padding: 0 5px;
       border-radius: 10px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       line-height: 1;
       text-align: center;
-      font-size: 0.74em;
-    }
-
-    .controls .controls-right-primary > .window-aspect-select {
-      width: auto;
-      min-width: 0;
-      max-width: none;
+      font-size: 0.68em;
       box-sizing: border-box;
-      text-align: center;
       text-align-last: center;
       -moz-text-align-last: center;
     }
@@ -1036,8 +1063,8 @@
 
       .controls .controls-right {
         grid-area: right;
-        justify-content: flex-end;
-        flex-wrap: wrap;
+        justify-content: flex-start;
+        align-items: stretch;
         gap: 10px 12px;
       }
 
@@ -1071,12 +1098,12 @@
       }
 
       .controls .controls-right-primary > .window-aspect-select {
-        flex: 0 0 76px !important;
-        min-width: 76px !important;
-        width: 76px !important;
-        max-width: 76px !important;
+        flex: 0 0 auto !important;
+        width: auto !important;
+        max-width: 100% !important;
+        min-width: 5rem !important;
         padding: 0 4px !important;
-        font-size: 0.68em;
+        font-size: 0.66em !important;
       }
 
       .controls .controls-actions-row > .music-button,
@@ -1108,11 +1135,6 @@
 
       .scene-preview-grid {
         max-width: 100%;
-        --scene-card-thumb-h: calc((168px - 16px) * 9 / 16);
-      }
-
-      .scene-card {
-        flex-basis: 168px;
       }
 
       .language-row {
@@ -1160,9 +1182,12 @@
       .controls .controls-right {
         grid-area: right;
         width: auto;
+        max-width: 100%;
         display: flex;
-        flex-wrap: nowrap;
+        flex-direction: row;
+        align-items: center;
         justify-content: flex-end;
+        flex-wrap: nowrap;
         gap: 6px;
       }
 
@@ -1176,7 +1201,6 @@
         padding: 5px 10px;
       }
 
-      .controls .controls-right-primary > .window-aspect-select,
       .controls .controls-right-primary > .import-button,
       .controls .controls-actions-row > .music-button,
       .controls .controls-actions-row > .reset-button,
@@ -1204,12 +1228,13 @@
       }
 
       .controls .controls-right-primary > .window-aspect-select {
-        flex: 0 0 76px !important;
-        min-width: 76px !important;
-        width: 76px !important;
-        max-width: 76px !important;
+        flex: 0 0 auto !important;
+        width: auto !important;
+        max-width: 100% !important;
+        min-width: 5rem !important;
         padding: 0 4px !important;
-        font-size: 0.68em;
+        font-size: 0.64em !important;
+        height: 28px;
       }
 
       .controls .progress-wrap {
@@ -1272,12 +1297,15 @@
       .controls .controls-right {
         grid-area: right;
         width: auto;
-        flex-wrap: nowrap;
+        max-width: 100%;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
         justify-content: flex-end;
+        flex-wrap: nowrap;
         gap: 6px;
       }
 
-      .controls .controls-right-primary > .window-aspect-select,
       .controls .controls-right-primary > .import-button,
       .controls .controls-actions-row > .music-button,
       .controls .controls-actions-row > .reset-button,
@@ -1288,12 +1316,12 @@
       }
 
       .controls .controls-right-primary > .window-aspect-select {
-        flex: 0 0 76px !important;
-        min-width: 76px !important;
-        width: 76px !important;
-        max-width: 76px !important;
+        flex: 0 0 auto !important;
+        width: auto !important;
+        max-width: 100% !important;
+        min-width: 5rem !important;
         padding: 0 4px !important;
-        font-size: 0.68em;
+        font-size: 0.64em !important;
       }
 
       .controls .controls-actions-row > #VRButton {
@@ -1363,18 +1391,21 @@
       .controls .controls-right-primary {
         grid-area: narrow-rpri;
         justify-content: flex-end;
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
         gap: 4px;
         min-width: 0;
+        width: auto;
+        justify-self: end;
       }
 
       .controls .controls-right-primary > .window-aspect-select {
         flex: 0 0 auto;
-        width: auto !important;
+        width: min(100%, var(--compact-action-width-pix)) !important;
         min-width: 0 !important;
-        max-width: none !important;
-        padding: 0 6px !important;
-        font-size: 0.74em;
+        max-width: min(100%, var(--compact-action-width-pix)) !important;
+        margin-left: auto;
+        padding: 0 5px !important;
+        font-size: 0.66em !important;
       }
 
       .controls .controls-right-primary > .fov-wrap {
@@ -2188,16 +2219,17 @@
       renderer.xr.setFoveation(1.0);
 
       if (currentXrMode === 'immersive-ar') {
-        // AR: same window-frame setup as VR, but transparent background
+        // AR: same window-frame setup as VR, but transparent background; no bg splat (bg*.ply / bg*.spz)
         renderer.setClearColor(0x000000, 0);
         scene.background = null;
-        if (backgroundSplatMesh) backgroundSplatMesh.visible = false;
+        releaseBackgroundSplat();
         if (arBtn) {
           arBtn.setAttribute('aria-label', t('exitAr'));
           arBtn.setAttribute('title', t('exitAr'));
         }
         vrFrameGroup.visible = true;
-        vrWindowWhiteBoard.visible = true;
+        // No opaque backing in AR — otherwise it blocks camera passthrough behind the splat window
+        vrWindowWhiteBoard.visible = false;
         vrWindowMask.visible = true;
         vrFrameInitialized = false;
         vrFrameGroup.position.set(0, vrWindowBaseYOffset, 0);
@@ -2241,7 +2273,7 @@
 
       if (wasAr) {
         renderer.setClearColor(0x000000, 1);
-        if (backgroundSplatMesh) backgroundSplatMesh.visible = true;
+        void ensureBackgroundSplatMesh(frames).catch(() => {});
         vrWindowMask.scale.set(1, 1, 1);
         if (arBtn) {
           arBtn.setAttribute('aria-label', t('enterAr'));
@@ -2811,8 +2843,8 @@
     const DESKTOP_CACHE_SCENE_CONCURRENCY = 2;
     const IOS_CACHE_FRAME_BYTE_CONCURRENCY = 2;
     const DESKTOP_CACHE_FRAME_BYTE_CONCURRENCY = 2;
-    let maxFramesMode = FRAME_LIMIT_MODE_SHORT;
-    let maxFramesToLoad = SHORT_MAX_FRAMES;
+    let maxFramesMode = FRAME_LIMIT_MODE_MEDIUM;
+    let maxFramesToLoad = MEDIUM_MAX_FRAMES;
 
     function getRuntimeMemoryPolicy() {
       if (renderer.xr.isPresenting) {
@@ -2931,6 +2963,7 @@
     const fovValue = document.querySelector('.fov-value');
     const controlsRightEl = document.querySelector('.controls-right');
     const controlsActionsRowEl = document.querySelector('.controls-actions-row');
+    const controlsBarEl = document.querySelector('.controls');
     const prevSceneBtn = document.querySelector('.prev-scene-button');
     const nextSceneBtn = document.querySelector('.next-scene-button');
     const arBtn = document.querySelector('.ar-button');
@@ -2979,6 +3012,55 @@
         document.body.appendChild(vrButton);
       }
     }
+
+    function syncActionsRowWidthCssVar() {
+      if (!controlsBarEl || !controlsActionsRowEl) return;
+      const w = Math.round(controlsActionsRowEl.getBoundingClientRect().width);
+      if (w > 0) {
+        controlsBarEl.style.setProperty('--actions-row-width-pix', `${w}px`);
+      } else {
+        controlsBarEl.style.removeProperty('--actions-row-width-pix');
+      }
+    }
+
+    function syncCompactActionWidthCssVar() {
+      if (!controlsBarEl) return;
+      const compactActionEl = [vrButton, arBtn, resetBtn, musicBtn]
+        .find((el) => el instanceof HTMLElement && el.getBoundingClientRect().width > 0);
+      const w = compactActionEl ? Math.round(compactActionEl.getBoundingClientRect().width) : 0;
+      if (w > 0) {
+        controlsBarEl.style.setProperty('--compact-action-width-pix', `${w}px`);
+      } else {
+        controlsBarEl.style.removeProperty('--compact-action-width-pix');
+      }
+    }
+
+    syncActionsRowWidthCssVar();
+    syncCompactActionWidthCssVar();
+    requestAnimationFrame(() => {
+      syncActionsRowWidthCssVar();
+      syncCompactActionWidthCssVar();
+      requestAnimationFrame(() => {
+        syncActionsRowWidthCssVar();
+        syncCompactActionWidthCssVar();
+      });
+    });
+
+    if (typeof ResizeObserver !== 'undefined' && controlsActionsRowEl) {
+      const actionsRowResizeObserver = new ResizeObserver(() => {
+        syncActionsRowWidthCssVar();
+        syncCompactActionWidthCssVar();
+      });
+      actionsRowResizeObserver.observe(controlsActionsRowEl);
+    }
+    if (typeof ResizeObserver !== 'undefined' && vrButton instanceof HTMLElement) {
+      const compactActionResizeObserver = new ResizeObserver(() => syncCompactActionWidthCssVar());
+      compactActionResizeObserver.observe(vrButton);
+    }
+    window.addEventListener('resize', () => {
+      syncActionsRowWidthCssVar();
+      syncCompactActionWidthCssVar();
+    }, { passive: true });
 
     // ── Debug panel ──────────────────────────────────────────────────────────
     let debugVisible = false;
@@ -3379,6 +3461,14 @@
       document.querySelector('.canvas-container').classList.remove('invisible');
       const controlsEl = document.querySelector('.controls');
       if (controlsEl) controlsEl.classList.add('is-disabled');
+      requestAnimationFrame(() => {
+        syncActionsRowWidthCssVar();
+        syncCompactActionWidthCssVar();
+        requestAnimationFrame(() => {
+          syncActionsRowWidthCssVar();
+          syncCompactActionWidthCssVar();
+        });
+      });
     }
 
     function showImportInterface() {
@@ -4017,6 +4107,10 @@
     }
 
     async function ensureBackgroundSplatMesh(frameList = frames) {
+      if (currentXrMode === 'immersive-ar') {
+        releaseBackgroundSplat();
+        return;
+      }
       const sample = Array.isArray(frameList) ? frameList.find((f) => f && (f.bgUrl || f.bgFile)) : null;
       if (!sample) {
         releaseBackgroundSplat();
@@ -5054,7 +5148,7 @@
       if (normalized !== '/') return [];
       const catalog = await loadSceneCatalog();
       const sceneNames = Object.keys(catalog);
-      const pinnedOrder = ['TikTok_Dance', 'Cindy', '动物世界', '仓大佬跳舞'];
+      const pinnedOrder = ['TikTok_Dance', 'Cindy', '动物世界', '仓大佬跳舞', '直播美女'];
       const sceneSortRank = (name) => {
         const idx = pinnedOrder.indexOf(name);
         return idx >= 0 ? idx : pinnedOrder.length;
@@ -5335,6 +5429,11 @@
             <span class="frame-indicator frame-indicator-progress">0/0</span>
           </div>
           <div class="controls-right">
+            <div class="controls-actions-row">
+              <button class="music-button" type="button" data-i18n-key="musicLabel">Music</button>
+              <button class="reset-button" data-i18n-key="spatialLabel">Spatial</button>
+              <button class="ar-button" type="button" data-i18n-key="arLabel">AR</button>
+            </div>
             <div class="controls-right-primary">
               <span class="frame-indicator frame-indicator-actions">0/0</span>
               <select class="window-aspect-select" data-i18n-aria-label="windowAspect" aria-label="Window aspect">
@@ -5347,11 +5446,6 @@
                 <input class="fov-slider" type="range" min="10" max="90" step="1" value="30" />
                 <span class="fov-value">30°</span>
               </div>
-            </div>
-            <div class="controls-actions-row">
-              <button class="music-button" type="button" data-i18n-key="musicLabel">Music</button>
-              <button class="reset-button" data-i18n-key="spatialLabel">Spatial</button>
-              <button class="ar-button" type="button" data-i18n-key="arLabel">AR</button>
             </div>
           </div>
         </div>
@@ -5381,8 +5475,8 @@
         <div class="url-row">
           <div class="frame-limit-wrap" data-i18n-title="frameRange" title="Frame range">
             <select class="frame-limit-select" data-i18n-aria-label="frameRange" aria-label="Frame range">
-              <option value="short" data-i18n-key="shortFrames" selected>Short (16 Frames)</option>
-              <option value="medium" data-i18n-key="mediumFrames">Medium (32 Frames)</option>
+              <option value="short" data-i18n-key="shortFrames">Short (16 Frames)</option>
+              <option value="medium" data-i18n-key="mediumFrames" selected>Medium (32 Frames)</option>
               <option value="long" data-i18n-key="longFrames">Long (All Frames)</option>
             </select>
           </div>
