@@ -162,6 +162,24 @@
       color: #fff !important;
     }
 
+    /* AR: no matte bezel or rounded “TV” frame — passthrough / page shows through */
+    body.is-immersive-ar .logo,
+    body.is-immersive-ar .scene-title-overlay,
+    body.is-immersive-ar .viewer-close-button,
+    body.is-immersive-ar .debug-panel,
+    body.is-immersive-ar .viewer-window .window-frame,
+    body.is-immersive-ar .scene-strip,
+    body.is-immersive-ar .scene-card,
+    body.is-immersive-ar .scene-card-thumb {
+      border: none !important;
+    }
+
+    body.is-immersive-ar .viewer-window .window-frame {
+      background: transparent !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+    }
+
     .hero-logo {
       text-align: center;
       margin-bottom: 2rem;
@@ -1713,6 +1731,15 @@
     const frameEl = document.querySelector('.window-frame');
     const width = frameEl.clientWidth;
     const height = frameEl.clientHeight;
+
+    /** Cap HiDPI multiplier so 3× phones do not tank FPS; 2× matches most “retina” class displays. */
+    const RENDERER_PIXEL_RATIO_CAP = 2;
+
+    function getClampedDevicePixelRatio() {
+      return Math.min(window.devicePixelRatio || 1, RENDERER_PIXEL_RATIO_CAP);
+    }
+
+    renderer.setPixelRatio(getClampedDevicePixelRatio());
     renderer.setSize(width, height, false);
     const XR_FRAMEBUFFER_SCALE_FACTOR = 1.0;
     renderer.xr.setFramebufferScaleFactor(XR_FRAMEBUFFER_SCALE_FACTOR);
@@ -1721,15 +1748,26 @@
     const localFrame = new THREE.Group();
     scene.add(localFrame);
 
-    const DESKTOP_MAX_STD_DEV = Math.sqrt(5);
-    const VR_MAX_STD_DEV = Math.sqrt(5);
-    const spark = new SparkRenderer({ renderer, maxStdDev: DESKTOP_MAX_STD_DEV });
+    // Spark default is sqrt(8); sqrt(5) truncates Gaussians sooner (softer / less detail vs gsplat-style viewers).
+    const SPLAT_MAX_STD_DEV = Math.sqrt(8);
+    const spark = new SparkRenderer({ renderer, maxStdDev: SPLAT_MAX_STD_DEV });
     localFrame.add(spark);
     scene.add(camera);
 
     const vrButton = document.createElement('button');
     vrButton.id = 'VRButton';
     vrButton.style.display = 'none';
+
+    let pendingRequestedXrMode = null;
+    let pendingRequestedXrModeAtMs = 0;
+    function rememberRequestedXrMode(mode) {
+      pendingRequestedXrMode = mode;
+      pendingRequestedXrModeAtMs = Date.now();
+    }
+
+    vrButton.addEventListener('click', () => {
+      rememberRequestedXrMode('immersive-vr');
+    });
 
     new SparkXr({
       renderer,
@@ -1836,6 +1874,13 @@
       // AVP immersive sessions in Safari are world-space + alpha-blend.
       return xrSession.interactionMode === 'world-space'
         && xrSession.environmentBlendMode === 'alpha-blend';
+    }
+
+    function isArLikeSession(xrSession) {
+      if (!xrSession) return false;
+      if (xrSession.mode === 'immersive-ar') return true;
+      // Some devices expose passthrough XR as immersive-vr + alpha-blend.
+      return xrSession.environmentBlendMode === 'alpha-blend';
     }
 
     function getVrWindowBaseYOffset() {
@@ -1956,57 +2001,14 @@
 
     }
 
-    // AR TV mode: mask plane is sized to just the TV bezel footprint.
-    // Real AR environment shows through everywhere outside the TV frame.
-    // Thick bezel frames the content like a TV screen floating in space.
+    // AR: keep the same logical window size as VR for fitting / debug HUD, but do not draw
+    // a matte mask or rounded bezel — passthrough shows everywhere around the splat.
     function drawArTvMask(openW, openH) {
       const tvW = (Number(openW) || DEFAULT_WIN_W) * AR_TV_SCALE;
       const tvH = (Number(openH) || DEFAULT_WIN_H) * AR_TV_SCALE;
       winW = Math.max(VR_MIN_WIN_W * AR_TV_SCALE, Math.min(VR_MAX_WIN_W * AR_TV_SCALE, tvW));
       winH = Math.max(VR_MIN_WIN_H * AR_TV_SCALE, Math.min(VR_MAX_WIN_H * AR_TV_SCALE, tvH));
       vrWindowWhiteBoard.scale.set(winW, winH, 1);
-
-      // Bezel thickness: 40% of content size on each side (covers edge artifacts)
-      const bezelW = winW * 0.40;
-      const bezelH = winH * 0.40;
-      const frameW = winW + bezelW * 2;
-      const frameH = winH + bezelH * 2;
-
-      // Scale mask plane to exactly the TV frame footprint (bezel + content)
-      vrWindowMask.scale.set(frameW / MASK_PLANE_W, frameH / MASK_PLANE_H, 1);
-
-      // Map content hole to canvas pixels
-      const holePixW = (winW / frameW) * MASK_CANVAS_W;
-      const holePixH = (winH / frameH) * MASK_CANVAS_H;
-      const holeX = (MASK_CANVAS_W - holePixW) / 2;
-      const holeY = (MASK_CANVAS_H - holePixH) / 2;
-      const holeRad = Math.max(20, Math.min(120, Math.min(holePixW, holePixH) * 0.12));
-      const outerRad = holeRad + Math.min(holeX, holeY) * 0.55;
-
-      maskCtx.clearRect(0, 0, MASK_CANVAS_W, MASK_CANVAS_H);
-
-      // 1) Transparent everywhere → real AR environment shows through outside bezel
-      // (canvas is already transparent after clearRect)
-
-      // 2) Dark TV bezel (full canvas = just the frame footprint)
-      maskCtx.fillStyle = 'rgba(22, 22, 22, 0.97)';
-      roundRect(maskCtx, 0, 0, MASK_CANVAS_W, MASK_CANVAS_H, outerRad);
-      maskCtx.fill();
-
-      // 3) Punch transparent hole for 3DGS content
-      maskCtx.globalCompositeOperation = 'destination-out';
-      maskCtx.fillStyle = '#000';
-      roundRect(maskCtx, holeX, holeY, holePixW, holePixH, holeRad);
-      maskCtx.fill();
-      maskCtx.globalCompositeOperation = 'source-over';
-
-      // 4) Inner highlight ring
-      maskCtx.strokeStyle = 'rgba(200, 200, 200, 0.6)';
-      maskCtx.lineWidth = 4 * (MASK_CANVAS_W / 1600);
-      roundRect(maskCtx, holeX, holeY, holePixW, holePixH, holeRad);
-      maskCtx.stroke();
-
-      maskTexture.needsUpdate = true;
     }
 
     // Dispatcher: uses TV mask in AR, normal mask in VR/desktop
@@ -2177,8 +2179,6 @@
     let xrPlaybackLastTimestamp = 0;
     let xrPlaybackElapsedMs = 0;
     let currentXrMode = null;
-    let arSessionRequested = false;
-
     function resetXrPlaybackClock() {
       xrPlaybackClockInitialized = false;
       xrPlaybackLastTimestamp = 0;
@@ -2188,9 +2188,17 @@
     renderer.xr.addEventListener('sessionstart', () => {
       const xrSession = renderer.xr.getSession();
       const sessionMode = xrSession?.mode || null;
-      const isAr = arSessionRequested || sessionMode === 'immersive-ar';
-      currentXrMode = isAr ? 'immersive-ar' : sessionMode;
-      arSessionRequested = false;
+      const fallbackRequestedMode = (
+        pendingRequestedXrMode
+        && (Date.now() - pendingRequestedXrModeAtMs) < 4000
+      ) ? pendingRequestedXrMode : null;
+      const effectiveSessionMode = sessionMode || fallbackRequestedMode;
+      // Prefer the actual XR session characteristics over stale UI state.
+      // Some passthrough sessions report immersive-vr with alpha-blend instead of immersive-ar.
+      const isAr = isArLikeSession(xrSession) || effectiveSessionMode === 'immersive-ar';
+      currentXrMode = isAr ? 'immersive-ar' : effectiveSessionMode;
+      pendingRequestedXrMode = null;
+      pendingRequestedXrModeAtMs = 0;
       isCurrentXrSessionAvp = isLikelyAppleVisionProSession(xrSession);
       const vrWindowBaseYOffset = getVrWindowBaseYOffset();
       const vrContentBaseYOffset = getVrContentBaseYOffset();
@@ -2215,10 +2223,10 @@
         } : null,
       });
 
-      spark.maxStdDev = VR_MAX_STD_DEV;
       renderer.xr.setFoveation(1.0);
 
       if (currentXrMode === 'immersive-ar') {
+        document.body.classList.add('is-immersive-ar');
         // AR: same window-frame setup as VR, but transparent background; no bg splat (bg*.ply / bg*.spz)
         renderer.setClearColor(0x000000, 0);
         scene.background = null;
@@ -2230,7 +2238,8 @@
         vrFrameGroup.visible = true;
         // No opaque backing in AR — otherwise it blocks camera passthrough behind the splat window
         vrWindowWhiteBoard.visible = false;
-        vrWindowMask.visible = true;
+        // No rounded matte / bezel mask in AR — full passthrough
+        vrWindowMask.visible = false;
         vrFrameInitialized = false;
         vrFrameGroup.position.set(0, vrWindowBaseYOffset, 0);
         vrFrameGroup.rotation.set(0, 0, 0);
@@ -2243,6 +2252,9 @@
         })();
         pendingVrRefit = true;
       } else {
+        document.body.classList.remove('is-immersive-ar');
+        renderer.setClearColor(0x000000, 1);
+        void ensureBackgroundSplatMesh(frames).catch(() => {});
         if (vrButton) {
           vrButton.setAttribute('aria-label', t('exitVr'));
           vrButton.setAttribute('title', t('exitVr'));
@@ -2270,8 +2282,11 @@
     renderer.xr.addEventListener('sessionend', () => {
       const wasAr = currentXrMode === 'immersive-ar';
       currentXrMode = null;
+      pendingRequestedXrMode = null;
+      pendingRequestedXrModeAtMs = 0;
 
       if (wasAr) {
+        document.body.classList.remove('is-immersive-ar');
         renderer.setClearColor(0x000000, 1);
         void ensureBackgroundSplatMesh(frames).catch(() => {});
         vrWindowMask.scale.set(1, 1, 1);
@@ -2286,7 +2301,6 @@
         }
       }
 
-      spark.maxStdDev = DESKTOP_MAX_STD_DEV;
       vrDebugHudMesh.visible = false;
       vrFrameGroup.visible = false;
       vrWindowWhiteBoard.visible = false;
@@ -2790,7 +2804,13 @@
       const height = frameEl.clientHeight;
 
       const canvas = renderer.domElement;
-      const needResize = canvas.width !== width || canvas.height !== height;
+      const pr = getClampedDevicePixelRatio();
+      if (renderer.getPixelRatio() !== pr) {
+        renderer.setPixelRatio(pr);
+      }
+      const expectedW = Math.floor(width * renderer.getPixelRatio());
+      const expectedH = Math.floor(height * renderer.getPixelRatio());
+      const needResize = canvas.width !== expectedW || canvas.height !== expectedH;
 
       if (needResize) {
         renderer.setSize(width, height, false);
@@ -3140,7 +3160,9 @@
     // ── AR mode ────────────────────────────────────────────────────────────
     if (arBtn) {
       arBtn.style.display = 'none';
-      arBtn.addEventListener('click', () => { arSessionRequested = true; });
+      arBtn.addEventListener('click', () => {
+        rememberRequestedXrMode('immersive-ar');
+      });
       new SparkXr({
         renderer,
         element: arBtn,
