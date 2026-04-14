@@ -1747,6 +1747,7 @@
     // VR mode support
     const localFrame = new THREE.Group();
     scene.add(localFrame);
+    const XR_SCENE_SCALE = 0.6;
 
     // Spark default is sqrt(8); sqrt(5) truncates Gaussians sooner (softer / less detail vs gsplat-style viewers).
     const SPLAT_MAX_STD_DEV = Math.sqrt(8);
@@ -2245,7 +2246,7 @@
         vrFrameGroup.rotation.set(0, 0, 0);
         localFrame.position.set(0, vrContentBaseYOffset, 0);
         localFrame.rotation.set(0, 0, 0);
-        localFrame.scale.set(1, 1, 1);
+        localFrame.scale.setScalar(XR_SCENE_SCALE);
         (() => {
           const d = getDefaultVrWindowDimensions();
           drawArTvMask(d.w, d.h);
@@ -2268,7 +2269,7 @@
         vrFrameGroup.rotation.set(0, 0, 0);
         localFrame.position.set(0, vrContentBaseYOffset, 0);
         localFrame.rotation.set(0, 0, 0);
-        localFrame.scale.set(1, 1, 1);
+        localFrame.scale.setScalar(XR_SCENE_SCALE);
         (() => {
           const d = getDefaultVrWindowDimensions();
           drawVrWindowMask(d.w, d.h);
@@ -4115,14 +4116,25 @@
 
     let backgroundSplatMesh = null;
     let backgroundSplatKey = null;
+    let backgroundSplatLoadGeneration = 0;
+    let backgroundSplatPendingKey = null;
+    let backgroundSplatPendingPromise = null;
+
+    function disposeDetachedSplatMesh(mesh) {
+      if (!mesh) return;
+      mesh.visible = false;
+      mesh.parent?.remove(mesh);
+      if (typeof mesh.dispose === 'function') {
+        mesh.dispose();
+      }
+    }
 
     function releaseBackgroundSplat() {
+      backgroundSplatLoadGeneration += 1;
+      backgroundSplatPendingKey = null;
+      backgroundSplatPendingPromise = null;
       if (backgroundSplatMesh) {
-        backgroundSplatMesh.visible = false;
-        backgroundSplatMesh.parent?.remove(backgroundSplatMesh);
-        if (typeof backgroundSplatMesh.dispose === 'function') {
-          backgroundSplatMesh.dispose();
-        }
+        disposeDetachedSplatMesh(backgroundSplatMesh);
         backgroundSplatMesh = null;
       }
       backgroundSplatKey = null;
@@ -4143,25 +4155,49 @@
         : `file:${sample.bgFile.name}:${sample.bgFile.size}:${sample.bgFile.lastModified}`;
       if (backgroundSplatMesh && backgroundSplatKey === key) {
         backgroundSplatMesh.visible = true;
-        return;
+        return backgroundSplatMesh;
+      }
+      if (backgroundSplatPendingPromise && backgroundSplatPendingKey === key) {
+        return backgroundSplatPendingPromise;
       }
       releaseBackgroundSplat();
-      backgroundSplatKey = key;
-      const bytes = sample.bgUrl
-        ? await fetchBgPlyBytes(sample.bgUrl)
-        : await getBgPlyBytesFromFile(sample.bgFile);
-      const bgLabel = sample.bgUrl
-        ? getBaseName(sample.bgUrl.split('?')[0])
-        : getBaseName(sample.bgFile.name);
-      const mesh = await setSplatFile({
-        fileBytes: bytes,
-        fileName: bgLabel || 'bg.ply',
-      });
-      mesh.renderOrder = -1;
-      mesh.visible = true;
-      mesh.frustumCulled = false;
-      localFrame.add(mesh);
-      backgroundSplatMesh = mesh;
+      backgroundSplatPendingKey = key;
+      const loadGeneration = backgroundSplatLoadGeneration;
+      const pendingPromise = (async () => {
+        const bytes = sample.bgUrl
+          ? await fetchBgPlyBytes(sample.bgUrl)
+          : await getBgPlyBytesFromFile(sample.bgFile);
+        if (loadGeneration !== backgroundSplatLoadGeneration || frameList !== frames || currentXrMode === 'immersive-ar') {
+          return null;
+        }
+        const bgLabel = sample.bgUrl
+          ? getBaseName(sample.bgUrl.split('?')[0])
+          : getBaseName(sample.bgFile.name);
+        const mesh = await setSplatFile({
+          fileBytes: bytes,
+          fileName: bgLabel || 'bg.ply',
+        });
+        if (loadGeneration !== backgroundSplatLoadGeneration || frameList !== frames || currentXrMode === 'immersive-ar') {
+          disposeDetachedSplatMesh(mesh);
+          return null;
+        }
+        mesh.renderOrder = -1;
+        mesh.visible = true;
+        mesh.frustumCulled = false;
+        localFrame.add(mesh);
+        backgroundSplatMesh = mesh;
+        backgroundSplatKey = key;
+        return mesh;
+      })();
+      backgroundSplatPendingPromise = pendingPromise;
+      try {
+        return await pendingPromise;
+      } finally {
+        if (backgroundSplatPendingPromise === pendingPromise) {
+          backgroundSplatPendingPromise = null;
+          backgroundSplatPendingKey = null;
+        }
+      }
     }
 
     async function switchToFrameList(nextFrames, {
