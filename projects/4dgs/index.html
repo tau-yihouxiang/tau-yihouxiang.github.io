@@ -5161,7 +5161,6 @@
         card.type = 'button';
         card.className = 'scene-card';
         card.dataset.dir = fullDir;
-        card.title = fullDir;
 
         const thumb = document.createElement('div');
         thumb.className = 'scene-card-thumb';
@@ -5258,7 +5257,6 @@
           const option = document.createElement('option');
           option.value = fullDir;
           option.textContent = localizeSceneName(name);
-          option.title = fullDir;
           urlDirSelectEl.appendChild(option);
         }
       }
