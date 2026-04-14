@@ -50,6 +50,22 @@
       height: 100%;
     }
 
+    /*
+     * Normal playback: crop ~5% inset on each side (90% aperture) so subject reads larger.
+     * XR / AR DOM overlay uses body.is-immersive-ar — skip so headset scale stays consistent.
+     */
+    body:not(.is-immersive-ar) .viewer-window .window-frame > .spark-canvas {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(calc(100 / 90));
+      transform-origin: center center;
+    }
+
+    body:not(.is-immersive-ar) .viewer-window .window-frame > .viewer-preview-overlay {
+      transform: scale(calc(100 / 90));
+      transform-origin: center center;
+    }
+
     .invisible {
       display: none;
     }
