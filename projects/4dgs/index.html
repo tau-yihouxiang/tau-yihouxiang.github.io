@@ -2202,6 +2202,407 @@
       xrPlaybackElapsedMs = 0;
     }
 
+    // ── Head-pose driven safe-zone blur ───────────────────────────────────────
+    // 4D Gaussian Splat captures only support a small 6DoF pocket around the
+    // recording viewpoint. When the user's head leaves that pocket Spark has
+    // to extrapolate and visible artifacts appear.
+    //
+    // We do REAL screen-space Gaussian blur here, not splat-geometry inflation
+    // (the latter just makes ellipsoids visibly bigger, which is ugly). The
+    // blur is implemented as a 2-pass separable Gaussian post-process: scene
+    // is rendered to an offscreen render target, blurred horizontally then
+    // vertically, then composited back into the XR framebuffer per eye. See
+    // `setupXrBlurPipeline()` below for the actual GL setup.
+    const blurParams = {
+      // The "origin" is the world-space default origin (0, 0, 0) of the XR
+      // reference space — i.e. the pose three.js maps the splat scene to.
+      // All deltas below are measured relative to that fixed origin, NOT to
+      // wherever the user happens to be standing later. We want generous
+      // tolerances so casual leaning and looking around stays sharp; only
+      // large excursions blur.
+      posStart: 0.45, // metres — < ~half a step from origin: no blur
+      posFull: 1.10,  // metres — > 1.1 m from origin: fully blurred
+      rotStart: 30,   // degrees — < 30° head turn from origin: no blur
+      rotFull: 65,    // degrees — > 65° from origin: fully blurred
+      ease: 4.5,      // exponential smoothing rate (lower = gentler fade)
+      // Maximum per-axis Gaussian step in pixels for the H/V passes.
+      // The shader is a 9-tap Gaussian, so the effective stddev at full
+      // blur is roughly blurRadiusMax * 1.6.
+      blurRadiusMax: 6.0,
+      // Fixed internal RT downscale used WHENEVER blur is active. We do NOT
+      // interpolate this with the blur amount because every change in RT
+      // size triggers a GPU texture reallocation in three.js — that was the
+      // single biggest cause of the 60→22 fps drop. A constant scale keeps
+      // the RTs sticky and the per-frame cost roughly flat.
+      // 0.5 ⇒ ¼ of the XR fb pixels for the splat render and blur passes,
+      // and bilinear upsampling on the composite supplies additional softness
+      // for free.
+      blurRtScale: 0.5,
+    };
+    {
+      // Allow per-device tuning via URL query, e.g.
+      //   ?blurPosStart=0.20&blurPosFull=0.50&blurRotStart=15&blurRotFull=40
+      //   &blurRadiusMax=7&blurEase=6&blurRtScale=0.4
+      const u = new URLSearchParams(window.location.search);
+      const overrides = {
+        posStart: 'blurPosStart',
+        posFull: 'blurPosFull',
+        rotStart: 'blurRotStart',
+        rotFull: 'blurRotFull',
+        ease: 'blurEase',
+        blurRadiusMax: 'blurRadiusMax',
+        blurRtScale: 'blurRtScale',
+      };
+      for (const [k, qk] of Object.entries(overrides)) {
+        const raw = u.get(qk);
+        if (raw === null) continue;
+        const v = Number(raw);
+        if (Number.isFinite(v) && v >= 0) blurParams[k] = v;
+      }
+      blurParams.posFull = Math.max(blurParams.posFull, blurParams.posStart + 0.02);
+      blurParams.rotFull = Math.max(blurParams.rotFull, blurParams.rotStart + 1);
+      blurParams.blurRtScale = THREE.MathUtils.clamp(blurParams.blurRtScale, 0.25, 1);
+    }
+
+    // The reference is the WORLD-SPACE DEFAULT ORIGIN: position (0,0,0) and
+    // identity orientation. We measure the head's deviation from that fixed
+    // pose — not from a dynamically captured anchor — so blur correlates
+    // with how far the user has wandered from the scene's natural viewing
+    // sweet spot, regardless of when they entered XR.
+    let smoothedBlur = 0;
+    const _blurTmpPos = new THREE.Vector3();
+    const _blurTmpQuat = new THREE.Quaternion();
+    const _blurTmpScale = new THREE.Vector3();
+
+    function resetHeadAnchor() {
+      // The origin is fixed at world (0,0,0) / identity, so there's nothing
+      // to re-anchor — we just snap the smoothed blur back to 0 to avoid a
+      // visible carry-over after sessionstart / sessionend / Recenter.
+      smoothedBlur = 0;
+    }
+
+    function updateHeadBlur(deltaSeconds) {
+      if (!renderer.xr.isPresenting) {
+        smoothedBlur = 0;
+        return;
+      }
+      const xrCam = renderer.xr.getCamera();
+      if (!xrCam) return;
+      // Force-refresh the XR array camera against the current viewer pose
+      // BEFORE we read it. updateHeadBlur runs in the animate loop _before_
+      // renderer.render(), so without this call the matrix would still hold
+      // the previous frame's pose.
+      try { renderer.xr.updateCamera(camera); } catch (_) {}
+      xrCam.matrixWorld.decompose(_blurTmpPos, _blurTmpQuat, _blurTmpScale);
+
+      // Distance from the world origin (the splat's natural viewing pose).
+      const posDelta = _blurTmpPos.length();
+      // Angle of the head's orientation away from identity, in degrees.
+      // For a unit quaternion (x,y,z,w), the rotation magnitude is
+      // 2 * acos(|w|).
+      const w = THREE.MathUtils.clamp(Math.abs(_blurTmpQuat.w), -1, 1);
+      const angDeg = THREE.MathUtils.radToDeg(2 * Math.acos(w));
+
+      const posT = THREE.MathUtils.clamp(
+        (posDelta - blurParams.posStart) / Math.max(1e-3, blurParams.posFull - blurParams.posStart),
+        0, 1,
+      );
+      const rotT = THREE.MathUtils.clamp(
+        (angDeg - blurParams.rotStart) / Math.max(1e-3, blurParams.rotFull - blurParams.rotStart),
+        0, 1,
+      );
+      const targetBlur = Math.max(posT, rotT);
+
+      const a = 1 - Math.exp(-Math.max(0, deltaSeconds) * blurParams.ease);
+      smoothedBlur += (targetBlur - smoothedBlur) * a;
+      if (smoothedBlur < 1e-4) smoothedBlur = 0;
+    }
+
+    // ── XR post-process blur pipeline ─────────────────────────────────────────
+    // Builds three render targets (sceneRT for the rendered scene plus two
+    // ping-pong targets for the separable Gaussian) and a fullscreen quad
+    // scene used both for the blur passes and for the per-eye composite back
+    // into the XR framebuffer.
+    function makeBlurRT() {
+      const rt = new THREE.WebGLRenderTarget(2, 2, {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        wrapS: THREE.ClampToEdgeWrapping,
+        wrapT: THREE.ClampToEdgeWrapping,
+        format: THREE.RGBAFormat,
+        type: THREE.UnsignedByteType,
+        depthBuffer: false,
+        stencilBuffer: false,
+      });
+      rt.texture.generateMipmaps = false;
+      return rt;
+    }
+    const sceneRT = new THREE.WebGLRenderTarget(2, 2, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      wrapS: THREE.ClampToEdgeWrapping,
+      wrapT: THREE.ClampToEdgeWrapping,
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
+      depthBuffer: true,
+      stencilBuffer: false,
+    });
+    sceneRT.texture.generateMipmaps = false;
+    const blurPingRT = makeBlurRT();
+    const blurPongRT = makeBlurRT();
+    let blurRTSize = { w: 0, h: 0 };
+    let blurXrFbSize = { w: 0, h: 0 };
+
+    const fsBlurMaterial = new THREE.ShaderMaterial({
+      transparent: false,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.NoBlending,
+      uniforms: {
+        tDiffuse: { value: null },
+        uTexel: { value: new THREE.Vector2() },
+        uDir: { value: new THREE.Vector2(1, 0) },
+        uRadius: { value: 0 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position.xy, 0.0, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        uniform sampler2D tDiffuse;
+        uniform vec2 uTexel;
+        uniform vec2 uDir;
+        uniform float uRadius;
+        varying vec2 vUv;
+        void main() {
+          // 9-tap separable Gaussian. Weights match a stddev≈2.0 kernel; the
+          // visual stddev scales with uRadius.
+          vec2 step = uDir * uTexel * uRadius;
+          vec4 c  = texture(tDiffuse, vUv) * 0.227027;
+          c += texture(tDiffuse, vUv + step * 1.0) * 0.1945946;
+          c += texture(tDiffuse, vUv - step * 1.0) * 0.1945946;
+          c += texture(tDiffuse, vUv + step * 2.0) * 0.1216216;
+          c += texture(tDiffuse, vUv - step * 2.0) * 0.1216216;
+          c += texture(tDiffuse, vUv + step * 3.0) * 0.054054;
+          c += texture(tDiffuse, vUv - step * 3.0) * 0.054054;
+          c += texture(tDiffuse, vUv + step * 4.0) * 0.016216;
+          c += texture(tDiffuse, vUv - step * 4.0) * 0.016216;
+          gl_FragColor = c;
+        }
+      `,
+    });
+    const fsCompositeMaterial = new THREE.ShaderMaterial({
+      transparent: false,
+      depthTest: false,
+      depthWrite: false,
+      // Direct copy — the scene RT already holds the final premultiplied-
+      // alpha image, including the transparent regions for AR passthrough.
+      blending: THREE.NoBlending,
+      uniforms: {
+        tDiffuse: { value: null },
+        // Per-eye sub-rect of the scene RT, in normalised UV coords.
+        uUvRect: { value: new THREE.Vector4(0, 0, 1, 1) },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position.xy, 0.0, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        uniform sampler2D tDiffuse;
+        uniform vec4 uUvRect;
+        varying vec2 vUv;
+        void main() {
+          vec2 uv = uUvRect.xy + vUv * uUvRect.zw;
+          gl_FragColor = texture(tDiffuse, uv);
+        }
+      `,
+    });
+
+    const fsQuadGeom = new THREE.PlaneGeometry(2, 2);
+    const fsQuadScene = new THREE.Scene();
+    const fsQuadCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const fsQuadMesh = new THREE.Mesh(fsQuadGeom, fsBlurMaterial);
+    fsQuadMesh.frustumCulled = false;
+    fsQuadScene.add(fsQuadMesh);
+
+    // Composite scene used to draw the blurred RT back to the XR framebuffer.
+    // We add it as a separate scene so that, in XR, three.js's per-eye loop
+    // calls our quad's onBeforeRender once per eye and we can swap the per-eye
+    // UV sub-rect uniform.
+    const compositeScene = new THREE.Scene();
+    const compositeQuad = new THREE.Mesh(fsQuadGeom, fsCompositeMaterial);
+    compositeQuad.frustumCulled = false;
+    compositeScene.add(compositeQuad);
+    const _compositeViewport = new THREE.Vector4();
+    compositeQuad.onBeforeRender = (_renderer, _scene, eyeCamera) => {
+      const vp = eyeCamera.viewport;
+      // The eye viewport is in XR-framebuffer pixel coords. Both the RT and
+      // the XR fb share the same viewport ratio, so dividing by the XR fb
+      // size gives correct UVs into the (possibly downscaled) RT.
+      const fw = blurXrFbSize.w || 1;
+      const fh = blurXrFbSize.h || 1;
+      if (vp) {
+        _compositeViewport.set(
+          vp.x / fw,
+          vp.y / fh,
+          vp.z / fw,
+          vp.w / fh,
+        );
+      } else {
+        _compositeViewport.set(0, 0, 1, 1);
+      }
+      fsCompositeMaterial.uniforms.uUvRect.value.copy(_compositeViewport);
+    };
+
+    function getXrFramebufferSize() {
+      const session = renderer.xr.getSession();
+      const baseLayer = session && session.renderState && session.renderState.baseLayer;
+      if (baseLayer) {
+        return { w: baseLayer.framebufferWidth, h: baseLayer.framebufferHeight };
+      }
+      const size = new THREE.Vector2();
+      renderer.getDrawingBufferSize(size);
+      return { w: size.x, h: size.y };
+    }
+
+    function ensureBlurRTSize(width, height) {
+      const w = Math.max(2, Math.floor(width));
+      const h = Math.max(2, Math.floor(height));
+      if (sceneRT.width === w && sceneRT.height === h && blurRTSize.w === w && blurRTSize.h === h) {
+        return;
+      }
+      sceneRT.setSize(w, h);
+      blurPingRT.setSize(w, h);
+      blurPongRT.setSize(w, h);
+      blurRTSize.w = w;
+      blurRTSize.h = h;
+    }
+
+    // Hoisted scratch state for the post-process render path so we don't
+    // allocate (and trigger GC) every frame inside renderSceneWithMaybeBlur.
+    const _blurPrevClearColor = new THREE.Color();
+    const _blurPrevViewport = new THREE.Vector4();
+
+    // Render the scene with a blur post-process if blur is active in XR;
+    // otherwise fall back to the standard direct render. This is the only
+    // entry point the animate loop calls.
+    function renderSceneWithMaybeBlur() {
+      const blur = smoothedBlur;
+      const useBlur = blur > 0.005 && renderer.xr.isPresenting;
+
+      if (!useBlur) {
+        renderer.render(scene, camera);
+        return;
+      }
+
+      const xrCamera = renderer.xr.getCamera();
+      const eyes = xrCamera && xrCamera.cameras && xrCamera.cameras.length > 0
+        ? xrCamera.cameras
+        : null;
+      if (!eyes) {
+        renderer.render(scene, camera);
+        return;
+      }
+
+      const fb = getXrFramebufferSize();
+      blurXrFbSize.w = fb.w;
+      blurXrFbSize.h = fb.h;
+      // Fixed downscale — see comment on blurParams.blurRtScale. Constant
+      // size keeps GPU memory sticky (no per-frame texture reallocation,
+      // which is what tanked the framerate).
+      const scale = blurParams.blurRtScale;
+      ensureBlurRTSize(Math.round(fb.w * scale), Math.round(fb.h * scale));
+
+      const prevRenderTarget = renderer.getRenderTarget();
+      const prevAutoClear = renderer.autoClear;
+      const prevAutoClearColor = renderer.autoClearColor;
+      const prevAutoClearDepth = renderer.autoClearDepth;
+      const prevXrEnabled = renderer.xr.enabled;
+      const prevClearAlpha = renderer.getClearAlpha();
+      renderer.getClearColor(_blurPrevClearColor);
+      renderer.getViewport(_blurPrevViewport);
+
+      // ── 1) Render the scene to sceneRT, manually per eye ────────────────
+      // Disable the XR auto-camera path so renderer.render() respects our
+      // per-eye camera + RT instead of going to the XR framebuffer.
+      renderer.xr.enabled = false;
+      renderer.setRenderTarget(sceneRT);
+      // Clear once for the whole RT (transparent in AR so passthrough shows
+      // through, opaque dark in VR to match the matte mask).
+      const arBg = currentXrMode === 'immersive-ar';
+      renderer.setClearColor(0x000000, arBg ? 0 : 1);
+      renderer.autoClear = false;
+      renderer.setViewport(0, 0, blurRTSize.w, blurRTSize.h);
+      renderer.setScissor(0, 0, blurRTSize.w, blurRTSize.h);
+      renderer.setScissorTest(true);
+      renderer.clear(true, true, false);
+      renderer.setScissorTest(false);
+      for (let i = 0; i < eyes.length; i++) {
+        const eye = eyes[i];
+        const vp = eye.viewport;
+        if (!vp) continue;
+        // Translate XR-framebuffer pixels into our (possibly downscaled) RT.
+        const x = Math.round(vp.x * scale);
+        const y = Math.round(vp.y * scale);
+        const w = Math.max(1, Math.round(vp.z * scale));
+        const h = Math.max(1, Math.round(vp.w * scale));
+        renderer.setViewport(x, y, w, h);
+        renderer.setScissor(x, y, w, h);
+        renderer.setScissorTest(true);
+        renderer.render(scene, eye);
+      }
+      renderer.setScissorTest(false);
+      renderer.autoClear = prevAutoClear;
+      renderer.autoClearColor = prevAutoClearColor;
+      renderer.autoClearDepth = prevAutoClearDepth;
+
+      // ── 2) Separable Gaussian blur — single H + V iteration ─────────────
+      // The RT is already half-res, so bilinear upsample on the composite
+      // adds a free ~1px stddev on top. One H+V pass with a 9-tap kernel
+      // and a moderate step gives plenty of perceived blur for a fraction
+      // of the cost of the previous 4-pass chain.
+      const baseRadius = blurParams.blurRadiusMax * blur;
+      fsBlurMaterial.uniforms.uTexel.value.set(1 / blurRTSize.w, 1 / blurRTSize.h);
+      fsQuadMesh.material = fsBlurMaterial;
+      renderer.setViewport(0, 0, blurRTSize.w, blurRTSize.h);
+
+      // H: sceneRT -> blurPingRT
+      fsBlurMaterial.uniforms.tDiffuse.value = sceneRT.texture;
+      fsBlurMaterial.uniforms.uDir.value.set(1, 0);
+      fsBlurMaterial.uniforms.uRadius.value = baseRadius;
+      renderer.setRenderTarget(blurPingRT);
+      renderer.render(fsQuadScene, fsQuadCamera);
+
+      // V: blurPingRT -> blurPongRT
+      fsBlurMaterial.uniforms.tDiffuse.value = blurPingRT.texture;
+      fsBlurMaterial.uniforms.uDir.value.set(0, 1);
+      fsBlurMaterial.uniforms.uRadius.value = baseRadius;
+      renderer.setRenderTarget(blurPongRT);
+      renderer.render(fsQuadScene, fsQuadCamera);
+
+      const blurredTex = blurPongRT.texture;
+
+      // ── 3) Composite back to the XR framebuffer ─────────────────────────
+      renderer.xr.enabled = prevXrEnabled;
+      renderer.setRenderTarget(prevRenderTarget);
+      renderer.setViewport(_blurPrevViewport);
+      renderer.setClearColor(_blurPrevClearColor, prevClearAlpha);
+      fsCompositeMaterial.uniforms.tDiffuse.value = blurredTex;
+      // We're about to clear+render the composite quad to the XR fbo, which
+      // will overwrite the per-eye viewports; let three.js's normal XR loop
+      // handle viewport setting via the array camera.
+      fsQuadMesh.material = fsBlurMaterial; // restore for next frame
+      renderer.render(compositeScene, camera);
+    }
+
     renderer.xr.addEventListener('sessionstart', () => {
       const xrSession = renderer.xr.getSession();
       const sessionMode = xrSession?.mode || null;
@@ -2293,6 +2694,10 @@
         pendingVrRefit = true;
       }
 
+      // Force the safe-zone anchor to re-acquire on the first XR frame so
+      // the user starts fully sharp regardless of where they were before.
+      resetHeadAnchor();
+
       stopPlayback();
       resetXrPlaybackClock();
     });
@@ -2327,6 +2732,7 @@
       vrFrameInitialized = false;
       isCurrentXrSessionAvp = false;
       pendingVrRefit = false;
+      resetHeadAnchor();
       resetXrPlaybackClock();
       if (isPlaying) {
         scheduleNextPlaybackTick();
@@ -2789,6 +3195,9 @@
         resetMotionBaseline();
         resetMotionAnchor();
       }
+      // Recenter also re-acquires the XR safe-viewing-zone anchor so the
+      // viewer can clear an out-of-bounds blur by tapping the recenter button.
+      resetHeadAnchor();
     }
 
     function resetViewState() {
@@ -4015,7 +4424,11 @@
         vrDebugHudMesh.visible = false;
       }
 
-      renderer.render(scene, camera);
+      // Compute the safe-zone blur factor from head-pose deviation, then
+      // either render the scene directly (no blur) or through the screen-
+      // space Gaussian post-process pipeline (blur > 0 in XR).
+      updateHeadBlur(deltaSeconds);
+      renderSceneWithMaybeBlur();
     });
 
     const dropZoneEl = document.querySelector('.container');
