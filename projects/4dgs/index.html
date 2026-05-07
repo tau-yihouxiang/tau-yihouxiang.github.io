@@ -66,6 +66,31 @@
       transform-origin: center center;
     }
 
+    /*
+     * Normal playback: fade the bottom of the frame into the window background so the
+     * character's lower-body cutoff (waist/skirt edge) does not look like it's floating.
+     * Skipped in AR (transparent passthrough) where a black gradient would be visible.
+     * z-index: 1 keeps it above the canvas but below the logo / title / close button
+     * (z-index 2) and the debug panel (z-index 3).
+     */
+    body:not(.is-immersive-ar) .viewer-window .window-frame::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 22%;
+      background: linear-gradient(
+        to bottom,
+        rgba(17, 17, 17, 0) 0%,
+        rgba(17, 17, 17, 0.55) 45%,
+        rgba(17, 17, 17, 0.9) 80%,
+        rgba(17, 17, 17, 1) 100%
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+
     .invisible {
       display: none;
     }
@@ -4683,6 +4708,43 @@
 
     const SPLAT_EXTS = ['.ply', '.spz', '.splat', '.ksplat', '.sog'];
     const AUDIO_EXTS = ['.mp3', '.ogg', '.wav', '.m4a', '.aac'];
+    const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'];
+
+    // Map a width/height ratio to the nearest predefined viewer aspect mode.
+    // Boundaries are the geometric means of neighboring modes (≈1.333 and ≈0.75).
+    function getAspectModeFromRatio(ratio) {
+      if (!Number.isFinite(ratio) || ratio <= 0) return null;
+      if (ratio >= 4 / 3) return '16:9';
+      if (ratio <= 3 / 4) return '9:16';
+      return '1:1';
+    }
+
+    function readImageAspectRatio(file) {
+      return new Promise((resolve) => {
+        let url = '';
+        try {
+          url = URL.createObjectURL(file);
+        } catch {
+          resolve(null);
+          return;
+        }
+        const img = new Image();
+        const cleanup = () => {
+          try { URL.revokeObjectURL(url); } catch {}
+        };
+        img.onload = () => {
+          const w = img.naturalWidth || img.width;
+          const h = img.naturalHeight || img.height;
+          cleanup();
+          resolve(w > 0 && h > 0 ? w / h : null);
+        };
+        img.onerror = () => {
+          cleanup();
+          resolve(null);
+        };
+        img.src = url;
+      });
+    }
 
     function isBackgroundSplatBaseName(base) {
       const lower = String(base || '').toLowerCase();
@@ -4711,6 +4773,7 @@
 
     function partitionImportedFiles(fileList) {
       const splatFiles = [];
+      const imageFiles = [];
       let musicFile = null;
       for (const f of fileList) {
         const lower = String(f.name || '').toLowerCase();
@@ -4718,9 +4781,11 @@
           if (!musicFile) musicFile = f;
         } else if (SPLAT_EXTS.some((ext) => lower.endsWith(ext))) {
           splatFiles.push(f);
+        } else if (IMAGE_EXTS.some((ext) => lower.endsWith(ext))) {
+          imageFiles.push(f);
         }
       }
-      return { splatFiles, musicFile };
+      return { splatFiles, musicFile, imageFiles };
     }
 
     async function applyLocalMusicFile(file) {
@@ -4744,10 +4809,21 @@
     }
 
     async function loadSplatFiles(files) {
-      const { splatFiles, musicFile } = partitionImportedFiles(files);
+      const { splatFiles, musicFile, imageFiles } = partitionImportedFiles(files);
       applySceneMusicByDirectory('');
       if (musicFile) {
         await applyLocalMusicFile(musicFile);
+      }
+      // Auto-pick playback window aspect from the first imported image, if any.
+      if (imageFiles.length > 0) {
+        const ratio = await readImageAspectRatio(imageFiles[0]);
+        const mode = getAspectModeFromRatio(ratio);
+        if (mode) {
+          setViewerAspectMode(mode);
+          if (windowAspectSelect) {
+            windowAspectSelect.value = mode;
+          }
+        }
       }
       const ordered = sortFilesByName(splatFiles);
       const { bgFile, frameFiles } = partitionBgPlyFiles(ordered);
@@ -5961,7 +6037,7 @@
         </div>
       </div>
       <div class="drop-zone" data-i18n-key="dragDrop">Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat) + music (.mp3) here</div>
-      <input id="file-input" class="hidden" accept=".ply,.spz,.splat,.ksplat,.sog,.mp3,.ogg,.wav,.m4a,.aac" type="file" multiple />
+      <input id="file-input" class="hidden" accept=".ply,.spz,.splat,.ksplat,.sog,.mp3,.ogg,.wav,.m4a,.aac,.png,.jpg,.jpeg,.webp,.gif,.bmp" type="file" multiple />
       <form class="url-form">
         <div class="scene-preview-grid" aria-live="polite"></div>
         <div class="url-row">
