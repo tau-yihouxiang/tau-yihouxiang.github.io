@@ -1933,6 +1933,111 @@
       return isCurrentXrSessionAvp ? AVP_VR_WINDOW_Y_OFFSET : 0;
     }
 
+    // ── AR placement offset ──────────────────────────────────────────────
+    // In AR mode, the user can move the foreground 3DGS to "stick" it to
+    // the environment ground (or any spot) using the controller. The
+    // accumulated translation is stored here in world meters and applied
+    // on top of the auto-centered localFrame position each frame and after
+    // every re-centering pass.
+    const arContentOffset = new THREE.Vector3(0, 0, 0);
+    const AR_HORIZ_MOVE_SPEED_MPS = 0.6;
+    const AR_VERT_MOVE_SPEED_MPS = 0.4;
+    const AR_THUMBSTICK_DEADZONE = 0.18;
+    // Standard XR gamepad mapping: buttons[4] = A (right) / X (left).
+    const AR_RESET_BUTTON_INDEX = 4;
+    let arResetButtonPrev = false;
+    const _arHeadFwd = new THREE.Vector3();
+    const _arHeadRight = new THREE.Vector3();
+    const _arOffsetDelta = new THREE.Vector3();
+
+    function readArAxisWithDeadzone(axes, idx) {
+      if (!Array.isArray(axes)) return 0;
+      const v = Number(axes[idx]);
+      if (!Number.isFinite(v)) return 0;
+      return Math.abs(v) < AR_THUMBSTICK_DEADZONE ? 0 : v;
+    }
+
+    function isArControllerButtonPressed(gp, idx) {
+      if (!gp || !Array.isArray(gp.buttons)) return false;
+      const b = gp.buttons[idx];
+      return !!(b && (b.pressed || (typeof b.value === 'number' && b.value > 0.5)));
+    }
+
+    function applyArContentOffsetToLocalFrame() {
+      if (currentXrMode !== 'immersive-ar') return;
+      if (arContentOffset.lengthSq() === 0) return;
+      localFrame.position.add(arContentOffset);
+    }
+
+    function resetArContentOffset() {
+      arContentOffset.set(0, 0, 0);
+      arResetButtonPrev = false;
+    }
+
+    function tickArControllerPlacement(deltaSeconds) {
+      if (currentXrMode !== 'immersive-ar') return;
+      const session = renderer.xr.getSession?.();
+      const inputSources = session?.inputSources;
+      if (!inputSources) return;
+
+      let strafeX = 0;
+      let forwardY = 0;
+      let verticalY = 0;
+      let resetPressed = false;
+
+      for (const src of inputSources) {
+        const gp = src?.gamepad;
+        if (!gp) continue;
+        // XR Standard Gamepad: axes[2] = thumbstick X, axes[3] = thumbstick Y.
+        const ax = readArAxisWithDeadzone(gp.axes, 2);
+        const ay = readArAxisWithDeadzone(gp.axes, 3);
+        if (src.handedness === 'right') {
+          strafeX += ax;
+          forwardY += -ay; // pushing stick up moves content forward (away)
+          if (isArControllerButtonPressed(gp, AR_RESET_BUTTON_INDEX)) {
+            resetPressed = true;
+          }
+        } else if (src.handedness === 'left') {
+          verticalY += -ay; // pushing stick up moves content up
+        }
+      }
+
+      // Edge-trigger reset on press transition only.
+      if (resetPressed && !arResetButtonPrev) {
+        if (arContentOffset.lengthSq() > 0) {
+          localFrame.position.sub(arContentOffset);
+          arContentOffset.set(0, 0, 0);
+        }
+      }
+      arResetButtonPrev = resetPressed;
+
+      if (strafeX === 0 && forwardY === 0 && verticalY === 0) return;
+
+      // Use head-yaw-aligned forward/right so thumbstick directions feel
+      // natural regardless of which way the user is facing.
+      const xrCam = renderer.xr.getCamera?.();
+      if (xrCam && typeof xrCam.getWorldDirection === 'function') {
+        xrCam.getWorldDirection(_arHeadFwd);
+      } else {
+        _arHeadFwd.set(0, 0, -1);
+      }
+      _arHeadFwd.y = 0;
+      if (_arHeadFwd.lengthSq() > 1e-6) {
+        _arHeadFwd.normalize();
+      } else {
+        _arHeadFwd.set(0, 0, -1);
+      }
+      _arHeadRight.set(_arHeadFwd.z, 0, -_arHeadFwd.x);
+
+      _arOffsetDelta.set(0, 0, 0);
+      _arOffsetDelta.addScaledVector(_arHeadRight, strafeX * AR_HORIZ_MOVE_SPEED_MPS * deltaSeconds);
+      _arOffsetDelta.addScaledVector(_arHeadFwd, forwardY * AR_HORIZ_MOVE_SPEED_MPS * deltaSeconds);
+      _arOffsetDelta.y += verticalY * AR_VERT_MOVE_SPEED_MPS * deltaSeconds;
+
+      arContentOffset.add(_arOffsetDelta);
+      localFrame.position.add(_arOffsetDelta);
+    }
+
     // ── VR Window Frame (mask) ──
     // A large dark-gray plane with a transparent rounded-rect hole in the center.
     // Outside the hole = opaque dark matte (blocks rear texture), inside the hole = transparent (shows 3DGS).
@@ -2143,6 +2248,7 @@
           const d = getDefaultVrWindowDimensions();
           drawWindowMask(d.w, d.h);
         })();
+        applyArContentOffsetToLocalFrame();
         return;
       }
 
@@ -2154,6 +2260,7 @@
           const d = getDefaultVrWindowDimensions();
           drawWindowMask(d.w, d.h);
         })();
+        applyArContentOffsetToLocalFrame();
         return;
       }
 
@@ -2194,6 +2301,9 @@
 
       // Recenter once more after changing aperture size.
       centerSplatInVrWindow();
+
+      // Preserve the user's AR placement offset across re-centering passes.
+      applyArContentOffsetToLocalFrame();
     }
 
     function setViewerAspectMode(mode) {
@@ -2693,6 +2803,9 @@
         vrFrameInitialized = false;
         vrFrameGroup.position.set(0, vrWindowBaseYOffset, 0);
         vrFrameGroup.rotation.set(0, 0, 0);
+        // Start each AR session with a fresh placement; user can re-position
+        // the foreground splat with the controller thumbsticks.
+        resetArContentOffset();
         localFrame.position.set(0, vrContentBaseYOffset, 0);
         localFrame.rotation.set(0, 0, 0);
         localFrame.scale.setScalar(XR_SCENE_SCALE);
@@ -2764,6 +2877,7 @@
       vrFrameInitialized = false;
       isCurrentXrSessionAvp = false;
       pendingVrRefit = false;
+      resetArContentOffset();
       resetHeadAnchor();
       resetXrPlaybackClock();
       if (isPlaying) {
@@ -4443,6 +4557,9 @@
           resetXrPlaybackClock();
         }
 
+        // AR-only: let the user move the foreground splat with the
+        // controller thumbsticks (e.g. to align it with the floor).
+        tickArControllerPlacement(deltaSeconds);
       }
 
       if (isInVR && debugVisible) {
