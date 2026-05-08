@@ -1933,22 +1933,32 @@
       return isCurrentXrSessionAvp ? AVP_VR_WINDOW_Y_OFFSET : 0;
     }
 
-    // ── AR placement offset ──────────────────────────────────────────────
-    // In AR mode, the user can move the foreground 3DGS to "stick" it to
-    // the environment ground (or any spot) using the controller. The
-    // accumulated translation is stored here in world meters and applied
-    // on top of the auto-centered localFrame position each frame and after
-    // every re-centering pass.
+    // ── AR placement offset & scale ──────────────────────────────────────
+    // In AR mode, the user can move and resize the foreground 3DGS to
+    // "stick" it to the environment ground (or any spot) using the
+    // controllers. The accumulated translation is in world meters and is
+    // applied on top of the auto-centered localFrame position each frame
+    // and after every re-centering pass. The accumulated scale multiplier
+    // is applied on top of XR_SCENE_SCALE.
     const arContentOffset = new THREE.Vector3(0, 0, 0);
+    let arContentScale = 1.0;
     const AR_HORIZ_MOVE_SPEED_MPS = 0.6;
     const AR_VERT_MOVE_SPEED_MPS = 0.4;
+    const AR_SCALE_LOG_RATE_PER_SEC = 0.8; // multiplicative speed (e^rate*dt)
+    const AR_MIN_SCALE_MULTIPLIER = 0.2;
+    const AR_MAX_SCALE_MULTIPLIER = 5.0;
     const AR_THUMBSTICK_DEADZONE = 0.18;
-    // Standard XR gamepad mapping: buttons[4] = A (right) / X (left).
-    const AR_RESET_BUTTON_INDEX = 4;
+    // Standard XR gamepad mapping: buttons[3]=thumbstick click,
+    // buttons[4]=A (right) / X (left), buttons[5]=B (right) / Y (left).
+    // Pico controllers occasionally re-shuffle these indices, so we accept
+    // any face button or thumbstick-click on either hand as "reset".
+    const AR_RESET_BUTTON_INDICES = [3, 4, 5];
     let arResetButtonPrev = false;
     const _arHeadFwd = new THREE.Vector3();
     const _arHeadRight = new THREE.Vector3();
     const _arOffsetDelta = new THREE.Vector3();
+    const _arWorldCenter = new THREE.Vector3();
+    const _arSplatLocal = new THREE.Vector3();
 
     function readArAxisWithDeadzone(axes, idx) {
       if (!Array.isArray(axes)) return 0;
@@ -1969,8 +1979,59 @@
       localFrame.position.add(arContentOffset);
     }
 
-    function resetArContentOffset() {
+    function applyArContentScaleToLocalFrame() {
+      if (currentXrMode !== 'immersive-ar') return;
+      localFrame.scale.setScalar(XR_SCENE_SCALE * arContentScale);
+    }
+
+    // Scale the splat "in place" around its current world center so the
+    // visible position does not drift on any axis when the user zooms.
+    function scaleArContentAroundCurrentCenter() {
+      if (currentXrMode !== 'immersive-ar') return;
+      if (!loadedSplat) {
+        applyArContentScaleToLocalFrame();
+        return;
+      }
+      vrBounds.setFromObject(loadedSplat);
+      if (vrBounds.isEmpty()) {
+        applyArContentScaleToLocalFrame();
+        return;
+      }
+      vrBounds.getCenter(_arWorldCenter);
+      // splat center expressed in localFrame-local coordinates (unscaled).
+      const sx = localFrame.scale.x || 1;
+      const sy = localFrame.scale.y || 1;
+      const sz = localFrame.scale.z || 1;
+      _arSplatLocal.set(
+        (_arWorldCenter.x - localFrame.position.x) / sx,
+        (_arWorldCenter.y - localFrame.position.y) / sy,
+        (_arWorldCenter.z - localFrame.position.z) / sz,
+      );
+      applyArContentScaleToLocalFrame();
+      // Re-place localFrame so the splat's world center stays put.
+      localFrame.position.set(
+        _arWorldCenter.x - localFrame.scale.x * _arSplatLocal.x,
+        _arWorldCenter.y - localFrame.scale.y * _arSplatLocal.y,
+        _arWorldCenter.z - localFrame.scale.z * _arSplatLocal.z,
+      );
+    }
+
+    // Restore localFrame to its initial centered, unit-multiplier state.
+    // Called when the user presses the reset button or AR session ends.
+    function resetArPlacementAndAnchor() {
       arContentOffset.set(0, 0, 0);
+      arContentScale = 1.0;
+      arResetButtonPrev = false;
+      if (currentXrMode !== 'immersive-ar') return;
+      localFrame.position.set(0, getVrContentBaseYOffset(), 0);
+      localFrame.rotation.set(0, 0, 0);
+      applyArContentScaleToLocalFrame();
+      fitVrWindowToSplat();
+    }
+
+    function resetArPlacement() {
+      arContentOffset.set(0, 0, 0);
+      arContentScale = 1.0;
       arResetButtonPrev = false;
     }
 
@@ -1983,6 +2044,7 @@
       let strafeX = 0;
       let forwardY = 0;
       let verticalY = 0;
+      let scaleAxis = 0;
       let resetPressed = false;
 
       for (const src of inputSources) {
@@ -1994,22 +2056,42 @@
         if (src.handedness === 'right') {
           strafeX += ax;
           forwardY += -ay; // pushing stick up moves content forward (away)
-          if (isArControllerButtonPressed(gp, AR_RESET_BUTTON_INDEX)) {
-            resetPressed = true;
-          }
         } else if (src.handedness === 'left') {
+          scaleAxis += ax; // pushing stick right grows, left shrinks
           verticalY += -ay; // pushing stick up moves content up
+        }
+        // Reset accepts any face button or thumbstick click on either hand
+        // for maximum compatibility across headset firmware variants.
+        for (const btnIdx of AR_RESET_BUTTON_INDICES) {
+          if (isArControllerButtonPressed(gp, btnIdx)) {
+            resetPressed = true;
+            break;
+          }
         }
       }
 
       // Edge-trigger reset on press transition only.
       if (resetPressed && !arResetButtonPrev) {
-        if (arContentOffset.lengthSq() > 0) {
-          localFrame.position.sub(arContentOffset);
-          arContentOffset.set(0, 0, 0);
-        }
+        resetArPlacementAndAnchor();
       }
       arResetButtonPrev = resetPressed;
+
+      // Scale: multiplicative integration so the rate feels constant in
+      // log-space (a 1-second push grows by ≈ e^rate ≈ 2.2× at rate 0.8).
+      if (scaleAxis !== 0) {
+        const factor = Math.exp(scaleAxis * AR_SCALE_LOG_RATE_PER_SEC * deltaSeconds);
+        const nextScale = THREE.MathUtils.clamp(
+          arContentScale * factor,
+          AR_MIN_SCALE_MULTIPLIER,
+          AR_MAX_SCALE_MULTIPLIER,
+        );
+        if (nextScale !== arContentScale) {
+          arContentScale = nextScale;
+          // Scale around the splat's current world center (preserves all
+          // three axes — including depth) so the position does not drift.
+          scaleArContentAroundCurrentCenter();
+        }
+      }
 
       if (strafeX === 0 && forwardY === 0 && verticalY === 0) return;
 
@@ -2804,8 +2886,8 @@
         vrFrameGroup.position.set(0, vrWindowBaseYOffset, 0);
         vrFrameGroup.rotation.set(0, 0, 0);
         // Start each AR session with a fresh placement; user can re-position
-        // the foreground splat with the controller thumbsticks.
-        resetArContentOffset();
+        // and re-scale the foreground splat with the controller thumbsticks.
+        resetArPlacement();
         localFrame.position.set(0, vrContentBaseYOffset, 0);
         localFrame.rotation.set(0, 0, 0);
         localFrame.scale.setScalar(XR_SCENE_SCALE);
@@ -2877,7 +2959,7 @@
       vrFrameInitialized = false;
       isCurrentXrSessionAvp = false;
       pendingVrRefit = false;
-      resetArContentOffset();
+      resetArPlacement();
       resetHeadAnchor();
       resetXrPlaybackClock();
       if (isPlaying) {
