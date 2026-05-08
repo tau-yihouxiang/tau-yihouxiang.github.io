@@ -1950,10 +1950,14 @@
     const AR_THUMBSTICK_DEADZONE = 0.18;
     // Standard XR gamepad mapping: buttons[3]=thumbstick click,
     // buttons[4]=A (right) / X (left), buttons[5]=B (right) / Y (left).
-    // Pico controllers occasionally re-shuffle these indices, so we accept
-    // any face button or thumbstick-click on either hand as "reset".
-    const AR_RESET_BUTTON_INDICES = [3, 4, 5];
+    // Reset accepts thumbstick-click or A/X on either hand to be robust to
+    // Pico's occasional button re-indexing. B/Y is reserved for toggling
+    // the AR background splat.
+    const AR_RESET_BUTTON_INDICES = [3, 4];
+    const AR_TOGGLE_BG_BUTTON_INDICES = [5];
     let arResetButtonPrev = false;
+    let arToggleBgButtonPrev = false;
+    let arBackgroundForcedInAr = false;
     const _arHeadFwd = new THREE.Vector3();
     const _arHeadRight = new THREE.Vector3();
     const _arOffsetDelta = new THREE.Vector3();
@@ -2033,6 +2037,23 @@
       arContentOffset.set(0, 0, 0);
       arContentScale = 1.0;
       arResetButtonPrev = false;
+      arToggleBgButtonPrev = false;
+      arBackgroundForcedInAr = false;
+    }
+
+    // Toggle whether the AR session shows the background 3DGS splat.
+    // By default AR runs without a background to keep the camera passthrough
+    // visible; pressing B/Y on the controller pulls the bg splat back in
+    // (or hides it again). The mesh is loaded lazily and lives inside
+    // localFrame, so it inherits the user's placement offset and scale.
+    function toggleArBackgroundSplat() {
+      if (currentXrMode !== 'immersive-ar') return;
+      arBackgroundForcedInAr = !arBackgroundForcedInAr;
+      if (arBackgroundForcedInAr) {
+        void ensureBackgroundSplatMesh(frames).catch(() => {});
+      } else {
+        releaseBackgroundSplat();
+      }
     }
 
     function tickArControllerPlacement(deltaSeconds) {
@@ -2046,6 +2067,7 @@
       let verticalY = 0;
       let scaleAxis = 0;
       let resetPressed = false;
+      let toggleBgPressed = false;
 
       for (const src of inputSources) {
         const gp = src?.gamepad;
@@ -2060,11 +2082,18 @@
           scaleAxis += ax; // pushing stick right grows, left shrinks
           verticalY += -ay; // pushing stick up moves content up
         }
-        // Reset accepts any face button or thumbstick click on either hand
-        // for maximum compatibility across headset firmware variants.
+        // Reset accepts thumbstick-click or A/X on either hand for
+        // compatibility across headset firmware variants.
         for (const btnIdx of AR_RESET_BUTTON_INDICES) {
           if (isArControllerButtonPressed(gp, btnIdx)) {
             resetPressed = true;
+            break;
+          }
+        }
+        // B/Y on either hand toggles the AR background splat.
+        for (const btnIdx of AR_TOGGLE_BG_BUTTON_INDICES) {
+          if (isArControllerButtonPressed(gp, btnIdx)) {
+            toggleBgPressed = true;
             break;
           }
         }
@@ -2075,6 +2104,12 @@
         resetArPlacementAndAnchor();
       }
       arResetButtonPrev = resetPressed;
+
+      // Edge-trigger background toggle on press transition only.
+      if (toggleBgPressed && !arToggleBgButtonPrev) {
+        toggleArBackgroundSplat();
+      }
+      arToggleBgButtonPrev = toggleBgPressed;
 
       // Scale: multiplicative integration so the rate feels constant in
       // log-space (a 1-second push grows by ≈ e^rate ≈ 2.2× at rate 0.8).
@@ -4800,8 +4835,14 @@
       backgroundSplatKey = null;
     }
 
+    // True when the bg splat must be hidden: AR session unless the user
+    // has explicitly toggled the background back on with the controller.
+    function shouldSuppressBackgroundSplatInAr() {
+      return currentXrMode === 'immersive-ar' && !arBackgroundForcedInAr;
+    }
+
     async function ensureBackgroundSplatMesh(frameList = frames) {
-      if (currentXrMode === 'immersive-ar') {
+      if (shouldSuppressBackgroundSplatInAr()) {
         releaseBackgroundSplat();
         return;
       }
@@ -4827,7 +4868,7 @@
         const bytes = sample.bgUrl
           ? await fetchBgPlyBytes(sample.bgUrl)
           : await getBgPlyBytesFromFile(sample.bgFile);
-        if (loadGeneration !== backgroundSplatLoadGeneration || frameList !== frames || currentXrMode === 'immersive-ar') {
+        if (loadGeneration !== backgroundSplatLoadGeneration || frameList !== frames || shouldSuppressBackgroundSplatInAr()) {
           return null;
         }
         const bgLabel = sample.bgUrl
@@ -4837,7 +4878,7 @@
           fileBytes: bytes,
           fileName: bgLabel || 'bg.ply',
         });
-        if (loadGeneration !== backgroundSplatLoadGeneration || frameList !== frames || currentXrMode === 'immersive-ar') {
+        if (loadGeneration !== backgroundSplatLoadGeneration || frameList !== frames || shouldSuppressBackgroundSplatInAr()) {
           disposeDetachedSplatMesh(mesh);
           return null;
         }
@@ -4902,6 +4943,11 @@
       }
       if (warmup) {
         await startPlaybackAfterWarmup(frames);
+      }
+      // Restore the bg splat if the user had explicitly enabled it in AR
+      // before the frame list switch (releaseBackgroundSplat above wiped it).
+      if (currentXrMode === 'immersive-ar' && arBackgroundForcedInAr) {
+        void ensureBackgroundSplatMesh(frames).catch(() => {});
       }
     }
 
