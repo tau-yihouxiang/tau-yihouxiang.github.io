@@ -2475,8 +2475,8 @@
       // Position thresholds are PERPENDICULAR distance from the world
       // Z axis (= sqrt(x² + y²) of the head pose). Pure forward/backward
       // motion along Z is free; only lateral or vertical drift counts.
-      posStart: 0.45, // metres — < ~half a step off the centerline: no blur
-      posFull: 1.10,  // metres — > 1.1 m off the centerline: fully blurred
+      posStart: 0.90, // metres — < ~one step off the centerline: no blur
+      posFull: 2.20,  // metres — > 2.2 m off the centerline: fully blurred
       rotStart: 30,   // degrees — < 30° head turn from origin: no blur
       rotFull: 65,    // degrees — > 65° from origin: fully blurred
       ease: 4.5,      // exponential smoothing rate (lower = gentler fade)
