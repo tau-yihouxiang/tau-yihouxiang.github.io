@@ -1674,9 +1674,10 @@
     };
 
     const SCENE_NAME_I18N = {
-      '仓大佬跳舞': { zh: '仓大佬跳舞', en: 'Cang Dance' },
       '动物世界': { zh: '动物世界', en: 'Animal World' },
-      '直播美女': { zh: '直播美女', en: 'Live Beauty' },
+      '世界杯MV': { zh: '世界杯 MV', en: 'World Cup MV' },
+      '变脸美女': { zh: '变脸美女', en: 'Face-Changing Beauty' },
+      iPhone: { zh: 'iPhone', en: 'iPhone' },
       TikTok_Dance: { zh: 'TikTok 舞蹈', en: 'TikTok Dance' },
       Cindy: { zh: 'Cindy', en: 'Cindy' },
     };
@@ -1684,8 +1685,9 @@
       TikTok_Dance: '0001.png',
       Cindy: '0001.png',
       '动物世界': '0000.png',
-      '仓大佬跳舞': '0000.png',
-      '直播美女': '0000.png',
+      '世界杯MV': '0000.png',
+      '变脸美女': '0000.png',
+      iPhone: '0000.png',
     };
 
     function t(key, vars = {}) {
@@ -3911,14 +3913,73 @@
       return parts[parts.length - 1] || '';
     }
 
+    // Legacy fallback when preview images are missing or fail to load.
     const PORTRAIT_SCENES = new Set(['TikTok_Dance', 'Cindy']);
+    const sceneAspectModeByDirectory = new Map();
 
     function isPortraitSceneDirectory(dirUrl) {
       return PORTRAIT_SCENES.has(getSceneNameFromDirectory(dirUrl));
     }
 
-    function applyViewerAspectForSceneDirectory(dirUrl) {
-      const mode = isPortraitSceneDirectory(dirUrl) ? '9:16' : '16:9';
+    function readImageAspectRatioFromUrl(url) {
+      return new Promise((resolve) => {
+        const src = String(url || '').trim();
+        if (!src) {
+          resolve(null);
+          return;
+        }
+        const img = new Image();
+        try {
+          const origin = new URL(src, window.location.href).origin;
+          if (origin !== window.location.origin) {
+            img.crossOrigin = 'anonymous';
+          }
+        } catch {
+        }
+        img.onload = () => {
+          const w = img.naturalWidth || img.width;
+          const h = img.naturalHeight || img.height;
+          resolve(w > 0 && h > 0 ? w / h : null);
+        };
+        img.onerror = () => resolve(null);
+        img.src = src;
+      });
+    }
+
+    async function readImageAspectRatioFromUrls(urls) {
+      const list = Array.isArray(urls) ? urls : [];
+      for (const url of list) {
+        const ratio = await readImageAspectRatioFromUrl(url);
+        if (ratio != null) return ratio;
+      }
+      return null;
+    }
+
+    function syncSceneCardPortraitClass(thumb, aspectMode) {
+      if (!thumb) return;
+      thumb.classList.toggle('is-portrait', aspectMode === '9:16');
+    }
+
+    async function resolveViewerAspectModeForScene(dirUrl, previewUrls = []) {
+      const normalized = normalizeDirectoryUrl(dirUrl);
+      if (sceneAspectModeByDirectory.has(normalized)) {
+        return sceneAspectModeByDirectory.get(normalized);
+      }
+      const ratio = await readImageAspectRatioFromUrls(previewUrls);
+      let mode = getAspectModeFromRatio(ratio);
+      if (!mode) {
+        mode = isPortraitSceneDirectory(normalized) ? '9:16' : '16:9';
+      }
+      sceneAspectModeByDirectory.set(normalized, mode);
+      return mode;
+    }
+
+    async function applyViewerAspectForSceneDirectory(dirUrl, previewUrls = null) {
+      const normalized = normalizeDirectoryUrl(dirUrl);
+      const urls = Array.isArray(previewUrls) && previewUrls.length > 0
+        ? previewUrls
+        : getScenePreviewCandidatesForDirectory(normalized);
+      const mode = await resolveViewerAspectModeForScene(normalized, urls);
       setViewerAspectMode(mode);
       if (windowAspectSelect) {
         windowAspectSelect.value = mode;
@@ -5820,7 +5881,10 @@
       const activeRequestId = requestId ?? (++sceneSelectionRequestId);
       setSceneSwitching(true);
       selectedSceneDirectory = normalized;
-      applyViewerAspectForSceneDirectory(normalized);
+      const candidates = Array.isArray(previewCandidates) && previewCandidates.length > 0
+        ? previewCandidates
+        : getScenePreviewCandidatesForDirectory(normalized);
+      await applyViewerAspectForSceneDirectory(normalized, candidates);
       applySceneMusicByDirectory(normalized);
       updateSceneNavButtons();
       setViewerSceneTitle(getDirectoryDisplayName(normalized));
@@ -5828,9 +5892,6 @@
         urlDirSelectEl.value = normalized;
       }
       syncScenePreviewSelection();
-      const candidates = Array.isArray(previewCandidates) && previewCandidates.length > 0
-        ? previewCandidates
-        : getScenePreviewCandidatesForDirectory(normalized);
       try {
         await loadFromUrlText(normalized, {
           viewerPreviewCandidates: candidates,
@@ -5892,6 +5953,7 @@
       const catalog = await loadSceneCatalog();
       scenePreviewGridEl.innerHTML = '';
       scenePreviewByDirectory.clear();
+      sceneAspectModeByDirectory.clear();
       sceneDirectoryList = directories.map(name => normalizeDirectoryUrl(`${normalizedBase}${name}/`));
 
       for (const name of directories) {
@@ -5909,15 +5971,28 @@
 
         const thumb = document.createElement('div');
         thumb.className = 'scene-card-thumb';
-        if (PORTRAIT_SCENES.has(resolveSceneDirectoryKey(name))) {
-          thumb.classList.add('is-portrait');
-        }
 
         const image = document.createElement('img');
         image.alt = `${displayName} preview`;
         image.loading = 'lazy';
         image.decoding = 'async';
         const fallbackQueue = [...previewInfo.fallbacks];
+        const previewUrlsForAspect = [previewInfo.primary, ...previewInfo.fallbacks]
+          .map((u) => String(u || '').trim())
+          .filter(Boolean);
+        const applyThumbAspectFromMode = (mode) => {
+          syncSceneCardPortraitClass(thumb, mode);
+        };
+        image.onload = () => {
+          const w = image.naturalWidth || image.width;
+          const h = image.naturalHeight || image.height;
+          if (w > 0 && h > 0) {
+            const mode = getAspectModeFromRatio(w / h)
+              || (isPortraitSceneDirectory(fullDir) ? '9:16' : '16:9');
+            sceneAspectModeByDirectory.set(fullDir, mode);
+            applyThumbAspectFromMode(mode);
+          }
+        };
         image.onerror = () => {
           const nextUrl = fallbackQueue.shift();
           if (nextUrl) {
@@ -5931,9 +6006,11 @@
             fallbackText.textContent = t('noPreview');
             thumb.appendChild(fallbackText);
           }
+          void resolveViewerAspectModeForScene(fullDir, previewUrlsForAspect).then(applyThumbAspectFromMode);
         };
         image.src = previewInfo.primary;
         thumb.appendChild(image);
+        void resolveViewerAspectModeForScene(fullDir, previewUrlsForAspect).then(applyThumbAspectFromMode);
 
         const title = document.createElement('span');
         title.className = 'scene-card-title';
