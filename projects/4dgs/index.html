@@ -3552,8 +3552,8 @@
     const DESKTOP_CACHE_SCENE_CONCURRENCY = 2;
     const IOS_CACHE_FRAME_BYTE_CONCURRENCY = 2;
     const DESKTOP_CACHE_FRAME_BYTE_CONCURRENCY = 2;
-    let maxFramesMode = FRAME_LIMIT_MODE_MEDIUM;
-    let maxFramesToLoad = MEDIUM_MAX_FRAMES;
+    let maxFramesMode = FRAME_LIMIT_MODE_LONG;
+    let maxFramesToLoad = Number.POSITIVE_INFINITY;
 
     function getRuntimeMemoryPolicy() {
       if (renderer.xr.isPresenting) {
@@ -3858,7 +3858,11 @@
         mode: 'ar',
         frameBufferScaleFactor: XR_FRAMEBUFFER_SCALE_FACTOR,
         sessionInit: {
-          optionalFeatures: ['hit-test', 'dom-overlay', 'local-floor'],
+          // Omit hit-test and local-floor — Pico/Quest treat them as spatial
+          // mapping and force a room scan on every AR entry. We only need
+          // dom-overlay for the HTML controls; placement uses head-relative
+          // coords and controller thumbsticks instead.
+          optionalFeatures: ['dom-overlay'],
           domOverlay: { root: document.body },
         },
         button: {
@@ -6289,8 +6293,8 @@
           <div class="frame-limit-wrap" data-i18n-title="frameRange" title="Frame range">
             <select class="frame-limit-select" data-i18n-aria-label="frameRange" aria-label="Frame range">
               <option value="short" data-i18n-key="shortFrames">Short (16 Frames)</option>
-              <option value="medium" data-i18n-key="mediumFrames" selected>Medium (32 Frames)</option>
-              <option value="long" data-i18n-key="longFrames">Long (All Frames)</option>
+              <option value="medium" data-i18n-key="mediumFrames">Medium (32 Frames)</option>
+              <option value="long" data-i18n-key="longFrames" selected>Long (All Frames)</option>
             </select>
           </div>
           <button type="button" class="cache-all-button">
