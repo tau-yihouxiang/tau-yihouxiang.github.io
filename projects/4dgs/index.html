@@ -25,7 +25,8 @@
       display: flex;
       align-items: center;
       width: 100%;
-      height: 100vh;
+      min-height: 100vh;
+      height: auto;
       background-color: rgb(43, 41, 40);
       margin: 0;
       padding: 0;
@@ -255,6 +256,7 @@
     }
 
     .drop-zone {
+      display: block;
       max-width: 760px;
       padding-top: 4rem;
       padding-bottom: 4rem;
@@ -451,6 +453,41 @@
       width: 100%;
     }
 
+    .single-image-section {
+      width: 100%;
+      max-width: 760px;
+      margin: 0.35rem auto 0;
+      box-sizing: border-box;
+    }
+
+    .single-image-section-title {
+      width: 100%;
+      max-width: 760px;
+      box-sizing: border-box;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: rgba(255, 255, 255, 0.7);
+      text-transform: uppercase;
+      padding: 0 4px;
+      margin: 0.35rem auto 0.3rem auto;
+    }
+
+    /* Single-image (single 3DGS) viewing mode hides the playback bar. */
+    body.is-single-image .controls .controls-left,
+    body.is-single-image .controls .progress-wrap,
+    body.is-single-image .controls .frame-indicator,
+    body.is-single-image .controls .music-button,
+    body.is-single-image .controls .window-aspect-select {
+      display: none !important;
+    }
+
+    /* Keep AR / VR available for viewing a single 3DGS spatially. */
+    body.is-single-image .controls .controls-actions-row > .ar-button,
+    body.is-single-image .controls .controls-actions-row > #VRButton {
+      display: inline-flex !important;
+    }
+
     .frame-limit-wrap {
       display: flex;
       align-items: center;
@@ -612,6 +649,7 @@
 
     .author-credit-import {
       margin-top: 12px;
+      margin-bottom: 32px;
     }
 
     .controls {
@@ -1527,14 +1565,19 @@
     {
       "imports": {
         "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.180.0/three.module.js",
-        "three/addons/": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.180.0/examples/jsm/",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
         "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/preview/2.0.0/spark.module.js"
       }
     }
   </script>
   <script type="module">
     import * as THREE from "three";
+    import { PLYLoader } from "./vendor/three/examples/jsm/loaders/PLYLoader.js";
+    import { GLTFLoader } from "./vendor/three/examples/jsm/loaders/GLTFLoader.js";
     import { SplatMesh, SparkControls, SparkRenderer, SparkXr } from "@sparkjsdev/spark";
+
+    const plyLoader = new PLYLoader();
+    const gltfLoader = new GLTFLoader();
 
     const LANG_STORAGE_KEY = 'pico-ui-language';
 
@@ -1563,7 +1606,7 @@
     const I18N_TEXT = {
       en: {
         heroTitle: 'PICO 6DoF Player',
-        dragDrop: 'Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat) + music (.mp3) here',
+        dragDrop: 'Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat), mesh (.ply, .glb), or music (.mp3) here',
         folderList: 'Folder list',
         frameRange: 'Frame range',
         selectFolder: 'Select folder...',
@@ -1615,10 +1658,12 @@
         aspect169: '16:9',
         aspect11: '1:1',
         aspect916: '9:16',
+        singleImageTitle: 'Single Image (3DGS)',
+        singleVideoTitle: 'Single Video (4DGS)',
       },
       zh: {
         heroTitle: 'PICO 6DoF 播放器',
-        dragDrop: '将 splat (.ply, .sog, .spz, .splat, .ksplat) + 音乐 (.mp3) 拖拽到这里',
+        dragDrop: '将 splat (.ply, .sog, .spz, .splat, .ksplat)、网格 mesh (.ply, .glb) 或音乐 (.mp3) 拖拽到这里',
         folderList: '场景列表',
         frameRange: '帧范围',
         selectFolder: '选择场景...',
@@ -1670,6 +1715,8 @@
         aspect169: '16:9 横屏',
         aspect11: '1:1 正方形',
         aspect916: '9:16 竖屏',
+        singleImageTitle: '单图像（3DGS）',
+        singleVideoTitle: '单视频（4DGS）',
       },
     };
 
@@ -1682,7 +1729,7 @@
       Cindy: { zh: 'Cindy', en: 'Cindy' },
     };
     const SCENE_PREVIEW_PRIMARY_BY_SCENE = {
-      TikTok_Dance: '0001.png',
+      TikTok_Dance: '0000.png',
       Cindy: '0001.png',
       '动物世界': '0000.png',
       '世界杯MV': '0000.png',
@@ -3015,29 +3062,48 @@
     const IS_TOUCH_DEVICE = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
     const IS_MOBILE_DEVICE = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
       || (IS_TOUCH_DEVICE && Math.min(window.screen.width, window.screen.height) <= 1024);
+    // --- Mobile "motion / 体感" parallax, tuned to feel like Apple's iOS spatial-photo
+    // motion mode: a smooth, continuous, frame-rate-independent look-around with a
+    // comfortable tilt range, soft limits, and a gentle critically-damped follow. ---
     const motionParams = new URLSearchParams(window.location.search);
-    const motionMoveAngleParam = Number(motionParams.get('motionMoveAngle'));
-    const motionRotateDeadzoneParam = Number(motionParams.get('motionRotateDeadzone'));
-    const MOBILE_MOTION_ROTATE_DEADZONE_DEG = THREE.MathUtils.clamp(
-      Number.isFinite(motionRotateDeadzoneParam) ? motionRotateDeadzoneParam : 4,
-      1,
-      12,
+    const motionRangeParam = Number(motionParams.get('motionRange'));
+    const motionYawParam = Number(motionParams.get('motionYaw'));
+    const motionPitchParam = Number(motionParams.get('motionPitch'));
+    const motionSmoothParam = Number(motionParams.get('motionSmooth'));
+    // Comfortable physical tilt (deg from the neutral hold) that maps to full parallax.
+    const MOBILE_MOTION_INPUT_RANGE_DEG = THREE.MathUtils.clamp(
+      Number.isFinite(motionRangeParam) ? motionRangeParam : 22,
+      8,
+      45,
     );
-    const MOBILE_MOTION_ROTATE_ABS_MAX_DEG = 5;
-    const MOBILE_MOTION_ROTATE_RANGE_DEG = MOBILE_MOTION_ROTATE_ABS_MAX_DEG;
-    const MOBILE_MOTION_ROTATE_MAX_DEG = MOBILE_MOTION_ROTATE_ABS_MAX_DEG;
-    const MOBILE_MOTION_MOVE_START_DEG = THREE.MathUtils.clamp(
-      Number.isFinite(motionMoveAngleParam) ? motionMoveAngleParam : 2,
+    // Tiny deadzone: rejects sensor jitter only, the response eases in right after.
+    const MOBILE_MOTION_DEADZONE_DEG = 0.5;
+    // Maximum parallax excursion (deg) of the camera orbit away from the anchor pose.
+    const MOBILE_MOTION_YAW_MAX_DEG = THREE.MathUtils.clamp(
+      Number.isFinite(motionYawParam) ? motionYawParam : 11,
+      2,
+      30,
+    );
+    const MOBILE_MOTION_PITCH_MAX_DEG = THREE.MathUtils.clamp(
+      Number.isFinite(motionPitchParam) ? motionPitchParam : 8,
+      2,
+      30,
+    );
+    // Subtle "lean in / out" dolly coupled to forward tilt (fraction of orbit distance).
+    const MOBILE_MOTION_DOLLY_IN = 0.1;
+    const MOBILE_MOTION_DOLLY_OUT = 0.05;
+    // Lateral parallax slide (keyboard A/D), fraction of orbit distance.
+    const MOBILE_MOTION_LATERAL = 0.07;
+    // Critically-damped follow time (s). Lower = snappier, higher = floatier.
+    const MOBILE_MOTION_SMOOTH_TIME = THREE.MathUtils.clamp(
+      Number.isFinite(motionSmoothParam) ? motionSmoothParam : 0.12,
+      0.03,
       0.5,
-      MOBILE_MOTION_ROTATE_ABS_MAX_DEG - 0.5,
     );
-    const MOBILE_MOTION_MOVE_MAX_DEG = MOBILE_MOTION_ROTATE_ABS_MAX_DEG;
-    const MOBILE_MOTION_MOVE_MAX_DISTANCE_FORWARD = 0.5;
-    const MOBILE_MOTION_MOVE_MAX_DISTANCE_BACKWARD = 0.1;
-    const MOBILE_MOTION_MOVE_MAX_DISTANCE_LATERAL = 0.1;
-    const MOBILE_MOTION_RECENTER_RATE = 2.2;
-    const MOBILE_MOTION_REST_ANGLE_DEG = 6;
+    // Slow neutral drift so any comfortable holding posture becomes "center" over time.
+    const MOBILE_MOTION_RECENTER_RATE = 1.2;
     const MOBILE_MOTION_EVENT_TIMEOUT_MS = 450;
+    const MOBILE_MOTION_SETTLE_EPS = 1e-3;
 
     const motionForwardVector = new THREE.Vector3();
     const motionRightVector = new THREE.Vector3();
@@ -3049,11 +3115,18 @@
       permissionDenied: false,
       baselineBeta: null,
       baselineGamma: null,
-      filteredBetaDelta: 0,
-      filteredGammaDelta: 0,
       lastBeta: null,
       lastGamma: null,
       lastEventTimeMs: 0,
+      // Smoothed, normalized [-1, 1] axis values plus their spring velocities.
+      smoothYaw: 0,
+      smoothPitch: 0,
+      smoothFwd: 0,
+      smoothLat: 0,
+      velYaw: 0,
+      velPitch: 0,
+      velFwd: 0,
+      velLat: 0,
       anchorReady: false,
       anchorOrbitYaw: 0,
       anchorOrbitPitch: 0,
@@ -3088,6 +3161,14 @@
       return Math.min(ORBIT_PORTRAIT_SCALE_MAX, base * ORBIT_PORTRAIT_BOOST);
     }
 
+    function usesSplatPortraitOrbitBoost() {
+      return !loadedSplat?.userData?.isMeshPly;
+    }
+
+    function getOrbitDistanceAspectScaleForView() {
+      return usesSplatPortraitOrbitBoost() ? getOrbitDistanceAspectScale() : 1;
+    }
+
     /** Widen effective vertical FOV on portrait canvas (Three.js FOV is vertical). */
     function getPortraitFovScale() {
       if (renderer.xr.isPresenting) return 1;
@@ -3099,15 +3180,25 @@
     }
 
     let fovUserDegrees = 30;
+    const SPLAT_CAMERA_FOV_MAX = 90;
+
+    function getCameraBaseFovDegrees() {
+      return fovUserDegrees;
+    }
+
+    function getCameraFovMaxDegrees() {
+      return SPLAT_CAMERA_FOV_MAX;
+    }
 
     function applyCameraFovForAspect() {
+      const fovMax = getCameraFovMaxDegrees();
       if (renderer.xr.isPresenting) {
-        camera.fov = THREE.MathUtils.clamp(fovUserDegrees, 10, 90);
+        camera.fov = THREE.MathUtils.clamp(getCameraBaseFovDegrees(), 10, fovMax);
         camera.updateProjectionMatrix();
         return;
       }
       const mul = getPortraitFovScale();
-      camera.fov = THREE.MathUtils.clamp(fovUserDegrees * mul, 10, 90);
+      camera.fov = THREE.MathUtils.clamp(getCameraBaseFovDegrees() * mul, 10, fovMax);
       camera.updateProjectionMatrix();
     }
     const spatialKeyState = {
@@ -3158,11 +3249,17 @@
     function resetMotionBaseline() {
       motionState.baselineBeta = null;
       motionState.baselineGamma = null;
-      motionState.filteredBetaDelta = 0;
-      motionState.filteredGammaDelta = 0;
       motionState.lastBeta = null;
       motionState.lastGamma = null;
       motionState.lastEventTimeMs = 0;
+      motionState.smoothYaw = 0;
+      motionState.smoothPitch = 0;
+      motionState.smoothFwd = 0;
+      motionState.smoothLat = 0;
+      motionState.velYaw = 0;
+      motionState.velPitch = 0;
+      motionState.velFwd = 0;
+      motionState.velLat = 0;
     }
 
     function resetMotionAnchor() {
@@ -3185,11 +3282,35 @@
       motionState.anchorReady = true;
     }
 
-    function applyDeadzoneAndNormalize(value, deadzoneDeg, maxRangeDeg) {
-      const absValue = Math.abs(value);
-      if (absValue <= deadzoneDeg) return 0;
-      const normalized = (absValue - deadzoneDeg) / Math.max(1, maxRangeDeg - deadzoneDeg);
-      return Math.sign(value) * THREE.MathUtils.clamp(normalized, 0, 1);
+    // Maps a signed tilt delta (deg) to a normalized [-1, 1] response. A tiny deadzone
+    // kills sensor noise; an ease-out curve keeps the start responsive while softening
+    // the approach to the limit so there is never an abrupt clamp (Apple-like feel).
+    function mapMotionAxis(deltaDeg, deadzoneDeg, rangeDeg) {
+      const sign = Math.sign(deltaDeg);
+      const mag = Math.abs(deltaDeg) - deadzoneDeg;
+      if (mag <= 0) return 0;
+      const span = Math.max(1e-3, rangeDeg - deadzoneDeg);
+      const t = THREE.MathUtils.clamp(mag / span, 0, 1);
+      const eased = t * (2 - t);
+      return sign * eased;
+    }
+
+    // Unity-style critically-damped smoothing (no overshoot), frame-rate independent.
+    // Reads/writes motionState[valueKey] and motionState[velKey].
+    function springSmooth(valueKey, velKey, target, dt) {
+      const smoothTime = Math.max(1e-4, MOBILE_MOTION_SMOOTH_TIME);
+      const omega = 2 / smoothTime;
+      const x = omega * dt;
+      const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+      const current = motionState[valueKey];
+      const change = current - target;
+      let vel = motionState[velKey];
+      const temp = (vel + omega * change) * dt;
+      vel = (vel - omega * temp) * exp;
+      const result = target + (change + temp) * exp;
+      motionState[velKey] = vel;
+      motionState[valueKey] = result;
+      return result;
     }
 
     function handleDeviceOrientation(event) {
@@ -3204,55 +3325,27 @@
       if (motionState.baselineBeta == null || motionState.baselineGamma == null) {
         motionState.baselineBeta = beta;
         motionState.baselineGamma = gamma;
-        return;
       }
-
-      const betaDelta = THREE.MathUtils.clamp(
-        wrapSignedDeltaDegrees(beta - motionState.baselineBeta),
-        -60,
-        60,
-      );
-      const gammaDelta = THREE.MathUtils.clamp(
-        wrapSignedDeltaDegrees(gamma - motionState.baselineGamma),
-        -60,
-        60,
-      );
-
-      const smoothFactor = 0.18;
-      motionState.filteredBetaDelta += (betaDelta - motionState.filteredBetaDelta) * smoothFactor;
-      motionState.filteredGammaDelta += (gammaDelta - motionState.filteredGammaDelta) * smoothFactor;
     }
 
+    // Slowly re-zeroes the neutral hold toward the user's resting posture, but only
+    // while they are near center. Holding a deliberate tilt therefore stays put (the
+    // parallax does not creep back), while relaxing the wrist re-centers gently.
     function applyMotionAutoRecenter(deltaSeconds) {
       if (!motionState.enabled) return;
       if (!Number.isFinite(motionState.lastBeta) || !Number.isFinite(motionState.lastGamma)) return;
       if (!Number.isFinite(motionState.baselineBeta) || !Number.isFinite(motionState.baselineGamma)) return;
 
       const nowMs = performance.now();
-      if (nowMs - motionState.lastEventTimeMs > MOBILE_MOTION_EVENT_TIMEOUT_MS) {
-        motionState.filteredBetaDelta *= 0.8;
-        motionState.filteredGammaDelta *= 0.8;
-        return;
-      }
+      if (nowMs - motionState.lastEventTimeMs > MOBILE_MOTION_EVENT_TIMEOUT_MS) return;
 
-      const betaDelta = THREE.MathUtils.clamp(
-        wrapSignedDeltaDegrees(motionState.lastBeta - motionState.baselineBeta),
-        -60,
-        60,
-      );
-      const gammaDelta = THREE.MathUtils.clamp(
-        wrapSignedDeltaDegrees(motionState.lastGamma - motionState.baselineGamma),
-        -60,
-        60,
-      );
+      const betaDelta = wrapSignedDeltaDegrees(motionState.lastBeta - motionState.baselineBeta);
+      const gammaDelta = wrapSignedDeltaDegrees(motionState.lastGamma - motionState.baselineGamma);
+      const nearNeutral = Math.abs(betaDelta) < MOBILE_MOTION_DEADZONE_DEG + 3
+        && Math.abs(gammaDelta) < MOBILE_MOTION_DEADZONE_DEG + 3;
 
-      const seemsStill = Math.abs(betaDelta) < MOBILE_MOTION_REST_ANGLE_DEG
-        && Math.abs(gammaDelta) < MOBILE_MOTION_REST_ANGLE_DEG;
-      const hasIntent = Math.abs(betaDelta) >= MOBILE_MOTION_MOVE_START_DEG
-        || Math.abs(gammaDelta) >= MOBILE_MOTION_ROTATE_DEADZONE_DEG + 3;
-
-      if (seemsStill && !hasIntent) {
-        const adapt = THREE.MathUtils.clamp(MOBILE_MOTION_RECENTER_RATE * deltaSeconds, 0, 0.5);
+      if (nearNeutral) {
+        const adapt = THREE.MathUtils.clamp(MOBILE_MOTION_RECENTER_RATE * deltaSeconds, 0, 0.3);
         motionState.baselineBeta += betaDelta * adapt;
         motionState.baselineGamma += gammaDelta * adapt;
       }
@@ -3311,113 +3404,80 @@
         applyMotionAutoRecenter(deltaSeconds);
       }
 
-      const keyboardGammaDelta = (
-        (spatialKeyState.turnRight ? 1 : 0) - (spatialKeyState.turnLeft ? 1 : 0)
-      ) * MOBILE_MOTION_ROTATE_ABS_MAX_DEG;
-      const keyboardBetaDelta = (
-        (spatialKeyState.tiltBackward ? 1 : 0) - (spatialKeyState.tiltForward ? 1 : 0)
-      ) * MOBILE_MOTION_ROTATE_ABS_MAX_DEG;
-      const keyboardForwardInput = (
-        (spatialKeyState.moveForward ? 1 : 0) - (spatialKeyState.moveBackward ? 1 : 0)
-      );
-      const keyboardLateralInput = (
-        (spatialKeyState.moveRight ? 1 : 0) - (spatialKeyState.moveLeft ? 1 : 0)
-      );
-
-      const combinedGammaDelta = THREE.MathUtils.clamp(
-        motionState.filteredGammaDelta + keyboardGammaDelta,
-        -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
-        MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
-      );
-      const combinedBetaDelta = THREE.MathUtils.clamp(
-        motionState.filteredBetaDelta + keyboardBetaDelta,
-        -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
-        MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
-      );
-
-      let rotated = false;
-      let moved = false;
-
-      const yawInput = applyDeadzoneAndNormalize(
-        THREE.MathUtils.clamp(
-          combinedGammaDelta,
-          -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
-          MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
-        ),
-        MOBILE_MOTION_ROTATE_DEADZONE_DEG,
-        MOBILE_MOTION_ROTATE_RANGE_DEG,
-      );
-      const pitchInput = applyDeadzoneAndNormalize(
-        THREE.MathUtils.clamp(
-          -combinedBetaDelta,
-          -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
-          MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
-        ),
-        MOBILE_MOTION_ROTATE_DEADZONE_DEG,
-        MOBILE_MOTION_ROTATE_RANGE_DEG,
-      );
-
-      if (Math.abs(yawInput) > 0 || Math.abs(pitchInput) > 0) {
-        const rotateLimitRad = THREE.MathUtils.degToRad(MOBILE_MOTION_ROTATE_MAX_DEG);
-        orbitTarget.copy(motionState.anchorOrbitTarget);
-        orbitDistance = motionState.anchorOrbitDistance;
-        orbitYaw = motionState.anchorOrbitYaw - yawInput * rotateLimitRad;
-        orbitPitch = THREE.MathUtils.clamp(
-          motionState.anchorOrbitPitch + pitchInput * rotateLimitRad,
-          -Math.PI / 2 + 0.05,
-          Math.PI / 2 - 0.05,
-        );
-        applyOrbit();
-        rotated = true;
+      // --- Raw tilt deltas from the neutral hold (degrees). ---
+      let betaDelta = 0;
+      let gammaDelta = 0;
+      const sensorFresh = Number.isFinite(motionState.lastBeta)
+        && Number.isFinite(motionState.baselineBeta)
+        && (performance.now() - motionState.lastEventTimeMs <= MOBILE_MOTION_EVENT_TIMEOUT_MS);
+      if (sensorFresh) {
+        betaDelta = wrapSignedDeltaDegrees(motionState.lastBeta - motionState.baselineBeta);
+        gammaDelta = wrapSignedDeltaDegrees(motionState.lastGamma - motionState.baselineGamma);
       }
 
-      const moveInput = applyDeadzoneAndNormalize(
-        THREE.MathUtils.clamp(
-          -combinedBetaDelta,
-          -MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
-          MOBILE_MOTION_ROTATE_ABS_MAX_DEG,
-        ),
-        MOBILE_MOTION_MOVE_START_DEG,
-        MOBILE_MOTION_MOVE_MAX_DEG,
+      // --- Normalized [-1, 1] axis targets. Tilt left/right -> yaw, tilt fwd/back ->
+      // pitch (look up/down) with a subtle coupled lean-in dolly. Each axis is decoupled
+      // and smoothly eased; keyboard spatial keys add into the same targets on desktop. ---
+      const keyYaw = (spatialKeyState.turnRight ? 1 : 0) - (spatialKeyState.turnLeft ? 1 : 0);
+      const keyPitch = (spatialKeyState.tiltForward ? 1 : 0) - (spatialKeyState.tiltBackward ? 1 : 0);
+      const keyFwd = (spatialKeyState.moveForward ? 1 : 0) - (spatialKeyState.moveBackward ? 1 : 0);
+      const keyLat = (spatialKeyState.moveRight ? 1 : 0) - (spatialKeyState.moveLeft ? 1 : 0);
+
+      const yawTarget = THREE.MathUtils.clamp(
+        mapMotionAxis(gammaDelta, MOBILE_MOTION_DEADZONE_DEG, MOBILE_MOTION_INPUT_RANGE_DEG) + keyYaw,
+        -1, 1,
       );
+      const pitchTarget = THREE.MathUtils.clamp(
+        mapMotionAxis(-betaDelta, MOBILE_MOTION_DEADZONE_DEG, MOBILE_MOTION_INPUT_RANGE_DEG) + keyPitch,
+        -1, 1,
+      );
+      const fwdTarget = THREE.MathUtils.clamp(
+        mapMotionAxis(-betaDelta, MOBILE_MOTION_DEADZONE_DEG, MOBILE_MOTION_INPUT_RANGE_DEG) + keyFwd,
+        -1, 1,
+      );
+      const latTarget = THREE.MathUtils.clamp(keyLat, -1, 1);
 
-      const forwardInput = THREE.MathUtils.clamp(moveInput + keyboardForwardInput, -1, 1);
-      const lateralInput = THREE.MathUtils.clamp(keyboardLateralInput, -1, 1);
+      // --- Critically-damped follow toward the targets (fluid, frame-rate independent). ---
+      const yaw = springSmooth('smoothYaw', 'velYaw', yawTarget, deltaSeconds);
+      const pitch = springSmooth('smoothPitch', 'velPitch', pitchTarget, deltaSeconds);
+      const fwd = springSmooth('smoothFwd', 'velFwd', fwdTarget, deltaSeconds);
+      const lat = springSmooth('smoothLat', 'velLat', latTarget, deltaSeconds);
 
-      if (Math.abs(forwardInput) > 0 || Math.abs(lateralInput) > 0) {
-        const distanceForward = forwardInput >= 0
-          ? forwardInput * MOBILE_MOTION_MOVE_MAX_DISTANCE_FORWARD
-          : forwardInput * MOBILE_MOTION_MOVE_MAX_DISTANCE_BACKWARD;
-        const distanceLateral = lateralInput * MOBILE_MOTION_MOVE_MAX_DISTANCE_LATERAL;
-        motionForwardVector.copy(motionState.anchorForward);
-        motionRightVector.set(0, 1, 0).cross(motionForwardVector).normalize();
-        motionOffsetVector.set(0, 0, 0);
-        motionOffsetVector.addScaledVector(motionForwardVector, distanceForward);
-        motionOffsetVector.addScaledVector(motionRightVector, distanceLateral);
-        orbitTarget.copy(motionState.anchorOrbitTarget).add(motionOffsetVector);
-        orbitDistance = motionState.anchorOrbitDistance;
-        const rotateLimitRad = THREE.MathUtils.degToRad(MOBILE_MOTION_ROTATE_MAX_DEG);
-        orbitYaw = motionState.anchorOrbitYaw - yawInput * rotateLimitRad;
-        orbitPitch = THREE.MathUtils.clamp(
-          motionState.anchorOrbitPitch + pitchInput * rotateLimitRad,
-          -Math.PI / 2 + 0.05,
-          Math.PI / 2 - 0.05,
-        );
-        applyOrbit();
-        moved = motionOffsetVector.lengthSq() > 1e-12;
-      } else if (!rotated) {
-        orbitTarget.copy(motionState.anchorOrbitTarget);
-        orbitDistance = motionState.anchorOrbitDistance;
-        orbitYaw = motionState.anchorOrbitYaw;
-        orbitPitch = THREE.MathUtils.clamp(
-          motionState.anchorOrbitPitch,
-          -Math.PI / 2 + 0.05,
-          Math.PI / 2 - 0.05,
-        );
-        applyOrbit();
-      }
+      const yawLimitRad = THREE.MathUtils.degToRad(MOBILE_MOTION_YAW_MAX_DEG);
+      const pitchLimitRad = THREE.MathUtils.degToRad(MOBILE_MOTION_PITCH_MAX_DEG);
 
-      return { rotated, moved };
+      const distance = motionState.anchorOrbitDistance;
+      const distForward = (fwd >= 0 ? fwd * MOBILE_MOTION_DOLLY_IN : fwd * MOBILE_MOTION_DOLLY_OUT) * distance;
+      const distLateral = lat * MOBILE_MOTION_LATERAL * distance;
+
+      motionForwardVector.copy(motionState.anchorForward);
+      motionRightVector.set(0, 1, 0).cross(motionForwardVector).normalize();
+      motionOffsetVector.set(0, 0, 0);
+      motionOffsetVector.addScaledVector(motionForwardVector, distForward);
+      motionOffsetVector.addScaledVector(motionRightVector, distLateral);
+
+      orbitTarget.copy(motionState.anchorOrbitTarget).add(motionOffsetVector);
+      orbitDistance = distance;
+      orbitYaw = motionState.anchorOrbitYaw - yaw * yawLimitRad;
+      orbitPitch = THREE.MathUtils.clamp(
+        motionState.anchorOrbitPitch + pitch * pitchLimitRad,
+        -Math.PI / 2 + 0.05,
+        Math.PI / 2 - 0.05,
+      );
+      applyOrbit();
+
+      // Report activity while the springs are still settling so the render loop keeps
+      // ownership of the camera and never drifts the orbit target back to the pose.
+      const active = Math.abs(yaw) > MOBILE_MOTION_SETTLE_EPS
+        || Math.abs(pitch) > MOBILE_MOTION_SETTLE_EPS
+        || Math.abs(fwd) > MOBILE_MOTION_SETTLE_EPS
+        || Math.abs(lat) > MOBILE_MOTION_SETTLE_EPS
+        || Math.abs(motionState.velYaw) > MOBILE_MOTION_SETTLE_EPS
+        || Math.abs(motionState.velPitch) > MOBILE_MOTION_SETTLE_EPS
+        || Math.abs(motionState.velFwd) > MOBILE_MOTION_SETTLE_EPS
+        || Math.abs(motionState.velLat) > MOBILE_MOTION_SETTLE_EPS;
+
+      return { rotated: active, moved: motionOffsetVector.lengthSq() > 1e-12 };
     }
 
     function applyOrbit() {
@@ -3432,6 +3492,159 @@
       );
       camera.position.copy(orbitTarget).add(offset);
       camera.lookAt(orbitTarget);
+    }
+
+    const _frameBounds = new THREE.Box3();
+    const _frameBoundsCenter = new THREE.Vector3();
+    const _frameBoundsSize = new THREE.Vector3();
+    const _capturePoint = new THREE.Vector3();
+    const _captureLocalMatrix = new THREE.Matrix4();
+
+    // Generic (centered/scaled) mesh fallback framing.
+    const MESH_CAMERA_FILL_MARGIN = 0.92;
+    // Fixed render FOV (deg) for capture meshes. Controls perspective strength (how close the
+    // camera sits relative to the subject's depth); subject size is normalized separately.
+    const MESH_CAPTURE_FOV = 60;
+    // Fraction of the frame's binding dimension the subject fills (1 = touches the edges, <1 =
+    // margin, >1 = slight crop). The camera distance is derived from each capture's measured
+    // angular size so every scene renders the subject at this same on-screen size.
+    const MESH_CAPTURE_FILL = 0.92;
+    const MESH_DEBUG = true;
+
+    function logMeshDebug(stage, payload) {
+      if (!MESH_DEBUG) return;
+      console.info('[mesh-view]', stage, payload);
+    }
+
+    function countVisibleMeshes(root) {
+      let total = 0;
+      let visible = 0;
+      root.traverse((child) => {
+        if (!child.isMesh) return;
+        total += 1;
+        if (child.visible !== false) visible += 1;
+      });
+      return { total, visible };
+    }
+
+    // These GLB/PLY frames are single-view RGBD reconstructions: all geometry sits
+    // in front of a pinhole camera at the local origin looking down -Z. Viewing them
+    // from that exact origin reproduces the original photo and hides the stretched
+    // depth-edge triangles (the "black silhouette" artifact). We measure the capture's
+    // angular extent so we can pick a FOV that frames the content, like the source video.
+    function computeMeshCaptureFraming(root) {
+      root.updateMatrixWorld(true);
+      _captureLocalMatrix.copy(localFrame.matrixWorld).invert();
+      let maxTanX = 0;
+      let maxTanY = 0;
+      let minZ = Infinity;
+      let maxZ = -Infinity;
+      let frontCount = 0;
+      let total = 0;
+      root.traverse((child) => {
+        if (!child.isMesh) return;
+        const position = child.geometry?.attributes?.position;
+        if (!position) return;
+        const wm = child.matrixWorld;
+        // Subsample large meshes for speed; 30k samples is plenty for angular extent.
+        const step = Math.max(1, Math.floor(position.count / 30000));
+        for (let i = 0; i < position.count; i += step) {
+          _capturePoint.fromBufferAttribute(position, i).applyMatrix4(wm).applyMatrix4(_captureLocalMatrix);
+          total += 1;
+          const z = _capturePoint.z;
+          if (z > -1e-3) continue;
+          frontCount += 1;
+          const invDepth = 1 / -z;
+          const tx = Math.abs(_capturePoint.x) * invDepth;
+          const ty = Math.abs(_capturePoint.y) * invDepth;
+          if (tx > maxTanX) maxTanX = tx;
+          if (ty > maxTanY) maxTanY = ty;
+          if (z < minZ) minZ = z;
+          if (z > maxZ) maxZ = z;
+        }
+      });
+      if (total === 0 || frontCount / total < 0.9 || !isFinite(minZ)) {
+        return null;
+      }
+      return {
+        tanX: maxTanX,
+        tanY: maxTanY,
+        centerDepth: (Math.abs(minZ) + Math.abs(maxZ)) * 0.5,
+      };
+    }
+
+    function frameMeshCameraView(object, { logFrame = false } = {}) {
+      if (!object) return;
+      object.updateMatrixWorld(true);
+      localFrame.updateMatrixWorld(true);
+      const capture = object.userData?.meshCaptureFraming;
+
+      if (capture) {
+        // View from the capture origin, straight down -Z (matches the source camera).
+        const aspect = Math.max(camera.aspect, 1e-3);
+        const fovDeg = MESH_CAPTURE_FOV;
+        if (!renderer.xr.isPresenting) {
+          camera.fov = fovDeg;
+          camera.updateProjectionMatrix();
+        }
+        orbitYaw = 0;
+        orbitPitch = 0;
+        // Normalize subject size across scenes: the content's binding angular half-extent
+        // (world half-size at the capture depth) is placed to fill MESH_CAPTURE_FILL of the
+        // frame at the fixed FOV. Distance therefore adapts to each capture's scale & framing.
+        const needTan = Math.max(capture.tanY, capture.tanX / aspect);
+        const vHalfTan = Math.tan(THREE.MathUtils.degToRad(fovDeg) * 0.5);
+        orbitDistance = (needTan * capture.centerDepth) / (vHalfTan * MESH_CAPTURE_FILL);
+        orbitTarget.set(0, 0, -capture.centerDepth).applyMatrix4(localFrame.matrixWorld);
+        applyOrbit();
+        lastCameraPos.copy(camera.position);
+        if (logFrame) {
+          logMeshDebug('frame', {
+            name: object.name,
+            captureTanXY: [capture.tanX, capture.tanY],
+            fovDeg,
+            centerDepth: capture.centerDepth,
+            cameraAspect: camera.aspect,
+            cameraPos: camera.position.toArray(),
+            orbitTarget: orbitTarget.toArray(),
+            meshCounts: countVisibleMeshes(object),
+          });
+        }
+        return;
+      }
+
+      // Fallback: generic centered mesh, frame its bounding box.
+      if (!renderer.xr.isPresenting) {
+        applyCameraFovForAspect();
+      }
+      _frameBounds.setFromObject(object);
+      if (_frameBounds.isEmpty()) return;
+      _frameBounds.getCenter(_frameBoundsCenter);
+      _frameBounds.getSize(_frameBoundsSize);
+      orbitTarget.copy(_frameBoundsCenter);
+      orbitYaw = 0;
+      orbitPitch = 0;
+      const vFovRad = THREE.MathUtils.degToRad(camera.fov);
+      const aspect = Math.max(camera.aspect, 1e-3);
+      const hFovRad = 2 * Math.atan(Math.tan(vFovRad * 0.5) * aspect);
+      const distForHeight = (_frameBoundsSize.y * 0.5) / Math.tan(vFovRad * 0.5);
+      const distForWidth = (_frameBoundsSize.x * 0.5) / Math.tan(hFovRad * 0.5);
+      orbitDistance = Math.max(0.15, Math.max(distForHeight, distForWidth) / MESH_CAMERA_FILL_MARGIN);
+      applyOrbit();
+      lastCameraPos.copy(camera.position);
+    }
+
+    function frameCameraToObject3D(object, options) {
+      frameMeshCameraView(object, options);
+    }
+
+    // Default desktop orbit for 3DGS. Must match syncOrbitFromCamera at the
+    // default camera pose (~0.1 distance); using 1.5 here gets multiplied by
+    // portrait aspect scale (~13× on 9:16) and shrinks splats to a tiny island.
+    function initOrbitForSplatView() {
+      orbitTarget.set(0, 0, 0);
+      camera.position.set(0, 0, 0.1);
+      syncOrbitFromCamera();
     }
 
     function syncOrbitFromCamera() {
@@ -3449,11 +3662,18 @@
     function resetView() {
       if (!hasInitialOrbit) return;
       orbitTarget.copy(initialOrbitTarget);
-      orbitYaw = initialOrbitYaw;
-      orbitPitch = initialOrbitPitch;
-      const sc = getOrbitDistanceAspectScale();
-      orbitDistance = initialOrbitDistance * sc;
-      lastOrbitAspectScale = sc;
+      if (loadedSplat?.userData?.isMeshPly) {
+        orbitYaw = 0;
+        orbitPitch = 0;
+        orbitDistance = initialOrbitDistance;
+        lastOrbitAspectScale = 1;
+      } else {
+        orbitYaw = initialOrbitYaw;
+        orbitPitch = initialOrbitPitch;
+        const sc = getOrbitDistanceAspectScaleForView();
+        orbitDistance = initialOrbitDistance * sc;
+        lastOrbitAspectScale = sc;
+      }
       applyOrbit();
       lastCameraPos.copy(camera.position);
       if (motionState.enabled) {
@@ -3466,6 +3686,17 @@
     }
 
     function resetViewState() {
+      if (loadedSplat?.userData?.isMeshPly) {
+        frameMeshCameraView(loadedSplat);
+        initialOrbitTarget = orbitTarget.clone();
+        initialOrbitYaw = 0;
+        initialOrbitPitch = 0;
+        initialOrbitDistance = orbitDistance;
+        lastOrbitAspectScale = 1;
+        lastCameraPos.copy(camera.position);
+        syncFovUi();
+        return;
+      }
       resetView();
       updateFov(30);
     }
@@ -3505,24 +3736,36 @@
 
       if (needResize) {
         renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
+      }
+      if (width > 0 && height > 0) {
+        const nextAspect = width / height;
+        if (Math.abs(camera.aspect - nextAspect) > 1e-6) {
+          camera.aspect = nextAspect;
+          camera.updateProjectionMatrix();
+        }
       }
 
       if (hasInitialOrbit && !renderer.xr.isPresenting && width > 0 && height > 0) {
-        const newSc = getOrbitDistanceAspectScale();
-        const prev = lastOrbitAspectScale;
-        if (Number.isFinite(prev) && prev > 1e-6) {
-          orbitDistance *= newSc / prev;
+        if (loadedSplat?.userData?.isMeshPly) {
+          frameMeshCameraView(loadedSplat);
+          lastOrbitAspectScale = 1;
+        } else if (usesSplatPortraitOrbitBoost()) {
+          const newSc = getOrbitDistanceAspectScale();
+          const prev = lastOrbitAspectScale;
+          if (Number.isFinite(prev) && prev > 1e-6) {
+            orbitDistance *= newSc / prev;
+          }
+          lastOrbitAspectScale = newSc;
+          applyOrbit();
+        } else {
+          applyOrbit();
         }
-        lastOrbitAspectScale = newSc;
-        applyOrbit();
         lastCameraPos.copy(camera.position);
       } else if (width > 0 && height > 0) {
-        lastOrbitAspectScale = getOrbitDistanceAspectScale();
+        lastOrbitAspectScale = getOrbitDistanceAspectScaleForView();
       }
 
-      if (!renderer.xr.isPresenting) {
+      if (!renderer.xr.isPresenting && !loadedSplat?.userData?.isMeshPly) {
         applyCameraFovForAspect();
       }
     }
@@ -4134,8 +4377,20 @@
     function updateFov(value) {
       fovUserDegrees = THREE.MathUtils.clamp(Number(value), 10, 90);
       applyCameraFovForAspect();
+      if (loadedSplat?.userData?.isMeshPly) {
+        frameMeshCameraView(loadedSplat);
+      }
+      syncFovUi();
+    }
+
+    function syncFovUi() {
+      const displayFov = Math.round(camera.fov);
       if (fovSlider) fovSlider.value = String(Math.round(fovUserDegrees));
-      if (fovValue) fovValue.textContent = `${Math.round(fovUserDegrees)}°`;
+      if (fovValue) fovValue.textContent = `${displayFov}°`;
+    }
+
+    function syncMeshViewCss() {
+      document.body.classList.toggle('is-mesh-view', !!loadedSplat?.userData?.isMeshPly);
     }
 
     function formatTime(seconds) {
@@ -4249,6 +4504,8 @@
 
     function showImportInterface() {
       setPlaying(false);
+      document.body.classList.remove('is-mesh-view');
+      document.body.classList.remove('is-single-image');
       document.querySelector('.canvas-container').classList.add('invisible');
       document.querySelector('.container').classList.remove('hidden');
       hideViewerPreviewOverlay();
@@ -4351,22 +4608,46 @@
           loadedSplat.visible = false;
         }
         loadedSplat = mesh;
+        syncMeshViewCss();
         hideViewerPreviewOverlay();
         const controlsEl = document.querySelector('.controls');
         if (controlsEl) controlsEl.classList.remove('is-disabled');
 
-        if (!hasInitialOrbit) {
-          syncOrbitFromCamera();
+        if (mesh.userData?.isMeshPly) {
+          applyCameraFovForAspect();
+          frameMeshCameraView(mesh, { logFrame: true });
+          logMeshDebug('show-frame', {
+            index: currentIndex,
+            name: frame?.name,
+            visible: mesh.visible,
+            meshCounts: countVisibleMeshes(mesh),
+          });
+          syncFovUi();
           initialOrbitTarget = orbitTarget.clone();
-          initialOrbitYaw = orbitYaw;
-          initialOrbitPitch = orbitPitch;
+          initialOrbitYaw = 0;
+          initialOrbitPitch = 0;
           initialOrbitDistance = orbitDistance;
-          const sc = getOrbitDistanceAspectScale();
-          orbitDistance = initialOrbitDistance * sc;
-          lastOrbitAspectScale = sc;
-          applyOrbit();
-          hasInitialOrbit = true;
+          lastOrbitAspectScale = 1;
           lastCameraPos.copy(camera.position);
+          if (!hasInitialOrbit) {
+            hasInitialOrbit = true;
+          }
+        } else {
+          applyCameraFovForAspect();
+          syncFovUi();
+          if (!hasInitialOrbit) {
+            initOrbitForSplatView();
+            initialOrbitTarget = orbitTarget.clone();
+            initialOrbitYaw = orbitYaw;
+            initialOrbitPitch = orbitPitch;
+            initialOrbitDistance = orbitDistance;
+            const sc = getOrbitDistanceAspectScale();
+            orbitDistance = initialOrbitDistance * sc;
+            lastOrbitAspectScale = sc;
+            applyOrbit();
+            hasInitialOrbit = true;
+            lastCameraPos.copy(camera.position);
+          }
         }
       } catch (error) {
         if (frame) {
@@ -4578,7 +4859,7 @@
     async function startPlaybackAfterWarmup(frameList = frames) {
       if (isCaching) return false;
       if (!Array.isArray(frameList) || frameList.length === 0) return false;
-      if (!loadedSplat || !loadedSplat.isInitialized) {
+      if (!isFrameObjectReady(loadedSplat)) {
         await showFrame(currentIndex);
       }
       const warmupDone = await warmupPlaybackAssets(frameList);
@@ -4694,17 +4975,19 @@
           resetViewState();
         }
         resize();
-        controls.update(camera);
+        if (!loadedSplat?.userData?.isMeshPly) {
+          controls.update(camera);
 
-        const motionResult = applyMobileMotionInput(deltaSeconds);
-        const isOrbiting = motionResult.rotated;
+          const motionResult = applyMobileMotionInput(deltaSeconds);
+          const isOrbiting = motionResult.rotated;
 
-        const deltaPos = camera.position.clone().sub(lastCameraPos);
-        if (isOrbiting || motionResult.moved) {
-          lastCameraPos.copy(camera.position);
-        } else if (deltaPos.lengthSq() > 0) {
-          orbitTarget.add(deltaPos);
-          lastCameraPos.copy(camera.position);
+          const deltaPos = camera.position.clone().sub(lastCameraPos);
+          if (isOrbiting || motionResult.moved) {
+            lastCameraPos.copy(camera.position);
+          } else if (deltaPos.lengthSq() > 0) {
+            orbitTarget.add(deltaPos);
+            lastCameraPos.copy(camera.position);
+          }
         }
       } else {
         // VR: window-frame mode
@@ -4766,14 +5049,14 @@
     const dropUIEl = document.querySelector('.drop-zone');
     const onDragover = function (e) {
       e.preventDefault();
-      dropUIEl.classList.add('dragover');
+      dropUIEl?.classList.add('dragover');
     };
     const onDragLeave = function () {
-      dropUIEl.classList.remove('dragover');
+      dropUIEl?.classList.remove('dragover');
     };
     const onDrop = function (e) {
       e.preventDefault();
-      dropUIEl.classList.remove('dragover');
+      dropUIEl?.classList.remove('dragover');
 
       const files = Array.from(e.dataTransfer.files || []);
       if (files.length > 0) {
@@ -4791,16 +5074,32 @@
     sparkCanvasEl.addEventListener('drop', onDrop);
 
     const fileInput = document.querySelector('#file-input');
-    fileInput.onchange = function(event) {
-      const files = Array.from(event.target.files || []);
-      if (files.length) { loadSplatFiles(files); }
-      event.target.value = '';
-    };
+    if (fileInput) {
+      fileInput.onchange = function(event) {
+        const files = Array.from(event.target.files || []);
+        if (files.length) { loadSplatFiles(files); }
+        event.target.value = '';
+      };
+    }
 
-    dropUIEl.addEventListener('click', () => {
-      fileInput.value = '';
-      fileInput.click();
-    });
+    function setupImportDropZoneInteractions() {
+      const containerEl = document.querySelector('.container');
+      const dropEl = document.querySelector('.drop-zone');
+      const inputEl = document.querySelector('#file-input');
+      if (!containerEl || !dropEl || !inputEl || dropEl.dataset.dropBound === '1') {
+        return !!dropEl?.dataset.dropBound;
+      }
+      dropEl.dataset.dropBound = '1';
+      dropEl.addEventListener('click', () => {
+        inputEl.value = '';
+      });
+      return true;
+    }
+
+    if (!setupImportDropZoneInteractions()) {
+      window.addEventListener('DOMContentLoaded', setupImportDropZoneInteractions, { once: true });
+      window.addEventListener('load', setupImportDropZoneInteractions, { once: true });
+    }
 
     function sortFilesByName(files) {
       return files.slice().sort((a, b) => {
@@ -4835,8 +5134,17 @@
           bytesPromise: null,
           bgUrl: bgUrl || null,
           bgFile: null,
+          renderKind: 'splat',
         };
       });
+    }
+
+    async function inferRenderKindFromFile(file) {
+      if (isMeshModelFileName(file?.name)) return 'mesh';
+      const lower = String(file?.name || '').toLowerCase();
+      if (!lower.endsWith('.ply')) return 'splat';
+      const headerBytes = new Uint8Array(await file.slice(0, 65536).arrayBuffer());
+      return getFrameRenderKind(file.name, headerBytes);
     }
 
     let cachedBgPlyUrl = null;
@@ -4880,13 +5188,68 @@
     let backgroundSplatPendingKey = null;
     let backgroundSplatPendingPromise = null;
 
-    function disposeDetachedSplatMesh(mesh) {
+    function disposeFrameObject(mesh) {
       if (!mesh) return;
       mesh.visible = false;
       mesh.parent?.remove(mesh);
-      if (typeof mesh.dispose === 'function') {
+      if (typeof mesh.dispose === 'function' && !mesh.userData?.isMeshPly) {
         mesh.dispose();
+        return;
       }
+      mesh.traverse((node) => {
+        node.geometry?.dispose();
+        const materials = node.material
+          ? (Array.isArray(node.material) ? node.material : [node.material])
+          : [];
+        materials.forEach((material) => {
+          if (!material) return;
+          material.map?.dispose();
+          material.dispose?.();
+        });
+      });
+    }
+
+    function getPlyHeaderText(bytes) {
+      const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      const limit = Math.min(view.length, 96 * 1024);
+      const endHeader = [101, 110, 100, 95, 104, 101, 97, 100, 101, 114];
+      for (let i = 0; i + endHeader.length <= limit; i += 1) {
+        let matched = true;
+        for (let j = 0; j < endHeader.length; j += 1) {
+          if (view[i + j] !== endHeader[j]) {
+            matched = false;
+            break;
+          }
+        }
+        if (matched) {
+          return new TextDecoder('utf-8').decode(view.subarray(0, i + endHeader.length));
+        }
+      }
+      return new TextDecoder('utf-8').decode(view.subarray(0, limit));
+    }
+
+    function classifyPlyBytes(bytes) {
+      const header = getPlyHeaderText(bytes).toLowerCase();
+      if (/\belement\s+face\b/.test(header)) return 'mesh';
+      const splatMarkers = [
+        'f_dc_0', 'f_dc_1', 'f_dc_2',
+        'opacity',
+        'scale_0', 'scale_1', 'scale_2',
+        'rot_0', 'rot_1', 'rot_2', 'rot_3',
+      ];
+      if (splatMarkers.some((name) => header.includes(name))) return 'splat';
+      return 'mesh';
+    }
+
+    function toArrayBuffer(bytes) {
+      if (bytes instanceof ArrayBuffer) return bytes;
+      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    }
+
+    function isFrameObjectReady(mesh) {
+      if (!mesh) return false;
+      if (mesh.userData?.isMeshPly) return true;
+      return !!mesh.isInitialized;
     }
 
     function releaseBackgroundSplat() {
@@ -4894,7 +5257,7 @@
       backgroundSplatPendingKey = null;
       backgroundSplatPendingPromise = null;
       if (backgroundSplatMesh) {
-        disposeDetachedSplatMesh(backgroundSplatMesh);
+        disposeFrameObject(backgroundSplatMesh);
         backgroundSplatMesh = null;
       }
       backgroundSplatKey = null;
@@ -4939,12 +5302,12 @@
         const bgLabel = sample.bgUrl
           ? getBaseName(sample.bgUrl.split('?')[0])
           : getBaseName(sample.bgFile.name);
-        const mesh = await setSplatFile({
+        const mesh = await loadFrameObject({
           fileBytes: bytes,
           fileName: bgLabel || 'bg.ply',
         });
         if (loadGeneration !== backgroundSplatLoadGeneration || frameList !== frames || shouldSuppressBackgroundSplatInAr()) {
-          disposeDetachedSplatMesh(mesh);
+          disposeFrameObject(mesh);
           return null;
         }
         mesh.renderOrder = -1;
@@ -4979,6 +5342,11 @@
       const previousFrames = frames;
       frames = nextFrames;
       currentIndex = 0;
+      const prevRenderKind = previousFrames[0]?.renderKind || 'splat';
+      const nextRenderKind = nextFrames[0]?.renderKind || 'splat';
+      if (prevRenderKind !== nextRenderKind) {
+        hasInitialOrbit = false;
+      }
       setPlaying(false);
 
       if (!releaseOnlyIfChanged || previousFrames !== frames) {
@@ -5017,8 +5385,14 @@
     }
 
     const SPLAT_EXTS = ['.ply', '.spz', '.splat', '.ksplat', '.sog'];
+    const MESH_MODEL_EXTS = ['.glb', '.gltf'];
     const AUDIO_EXTS = ['.mp3', '.ogg', '.wav', '.m4a', '.aac'];
     const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'];
+
+    function isMeshModelFileName(name) {
+      const lower = String(name || '').toLowerCase();
+      return MESH_MODEL_EXTS.some((ext) => lower.endsWith(ext));
+    }
 
     // Map a width/height ratio to the nearest predefined viewer aspect mode.
     // Boundaries are the geometric means of neighboring modes (≈1.333 and ≈0.75).
@@ -5083,19 +5457,22 @@
 
     function partitionImportedFiles(fileList) {
       const splatFiles = [];
+      const meshModelFiles = [];
       const imageFiles = [];
       let musicFile = null;
       for (const f of fileList) {
         const lower = String(f.name || '').toLowerCase();
         if (AUDIO_EXTS.some((ext) => lower.endsWith(ext))) {
           if (!musicFile) musicFile = f;
+        } else if (isMeshModelFileName(f.name)) {
+          meshModelFiles.push(f);
         } else if (SPLAT_EXTS.some((ext) => lower.endsWith(ext))) {
           splatFiles.push(f);
         } else if (IMAGE_EXTS.some((ext) => lower.endsWith(ext))) {
           imageFiles.push(f);
         }
       }
-      return { splatFiles, musicFile, imageFiles };
+      return { splatFiles, meshModelFiles, musicFile, imageFiles };
     }
 
     async function applyLocalMusicFile(file) {
@@ -5119,7 +5496,7 @@
     }
 
     async function loadSplatFiles(files) {
-      const { splatFiles, musicFile, imageFiles } = partitionImportedFiles(files);
+      const { splatFiles, meshModelFiles, musicFile, imageFiles } = partitionImportedFiles(files);
       applySceneMusicByDirectory('');
       if (musicFile) {
         await applyLocalMusicFile(musicFile);
@@ -5135,12 +5512,12 @@
           }
         }
       }
-      const ordered = sortFilesByName(splatFiles);
+      const ordered = sortFilesByName([...splatFiles, ...meshModelFiles]);
       const { bgFile, frameFiles } = partitionBgPlyFiles(ordered);
       const sequenceFiles = frameFiles.length > 0 ? frameFiles : (bgFile ? [bgFile] : []);
       if (sequenceFiles.length === 0) return;
 
-      const loadedFrames = limitFrames(sequenceFiles.map((f) => ({
+      const loadedFrames = limitFrames(await Promise.all(sequenceFiles.map(async (f) => ({
         name: getBaseName(f.name),
         timeUnits: Number.isFinite(extractFrameSequence(f.name)) ? extractFrameSequence(f.name) : null,
         file: f,
@@ -5150,7 +5527,8 @@
         bytesPromise: null,
         bgUrl: null,
         bgFile: frameFiles.length > 0 && bgFile ? bgFile : null,
-      })));
+        renderKind: await inferRenderKindFromFile(f),
+      }))));
 
       await switchToFrameList(loadedFrames, {
         warmup: true,
@@ -5160,6 +5538,156 @@
     }
 
     var loadedSplat;
+
+    const MESH_TARGET_EXTENT = 2.75;
+
+    function getMeshDisplayScale(maxDim) {
+      return 3 * (MESH_TARGET_EXTENT / Math.max(maxDim, 1e-6));
+    }
+
+    function convertMeshMaterialsToUnlit(root, { doubleSided = false } = {}) {
+      root.traverse((child) => {
+        if (!child.isMesh) return;
+        child.frustumCulled = false;
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        const converted = materials.filter(Boolean).map((material) => {
+          const basic = new THREE.MeshBasicMaterial({
+            map: material.map || null,
+            color: material.color?.isColor ? material.color.clone() : new THREE.Color(0xffffff),
+            vertexColors: !!material.vertexColors,
+            side: doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+            transparent: material.transparent === true,
+            opacity: material.opacity ?? 1,
+          });
+          if (basic.map) basic.map.colorSpace = THREE.SRGBColorSpace;
+          return basic;
+        });
+        if (converted.length === 1) {
+          child.material = converted[0];
+        } else if (converted.length > 1) {
+          child.material = converted;
+        }
+        materials.forEach((material) => {
+          material.map?.dispose();
+          material.dispose?.();
+        });
+      });
+    }
+
+    function finalizeMeshFrameRoot(root, { doubleSided = false } = {}) {
+      root.updateMatrixWorld(true);
+      root.quaternion.identity();
+      root.visible = false;
+      root.frustumCulled = false;
+      root.renderOrder = 1;
+      root.userData.isMeshPly = true;
+      localFrame.add(root);
+      root.updateMatrixWorld(true);
+
+      // Detect a single-view capture mesh (all geometry in front of the local origin).
+      const capture = computeMeshCaptureFraming(root);
+      if (capture) {
+        // Keep native coordinates: origin = capture camera. No recenter / rescale
+        // (uniform scaling about the origin would not change the framing anyway).
+        root.userData.meshCaptureFraming = capture;
+        convertMeshMaterialsToUnlit(root, { doubleSided });
+        logMeshDebug('finalize-capture', {
+          captureTanXY: [capture.tanX, capture.tanY],
+          centerDepth: capture.centerDepth,
+          meshCounts: countVisibleMeshes(root),
+        });
+        return root;
+      }
+
+      // Generic mesh: center at origin and normalize to the splat shell size.
+      const box = new THREE.Box3().setFromObject(root);
+      const center = new THREE.Vector3();
+      const size = new THREE.Vector3();
+      box.getCenter(center);
+      box.getSize(size);
+      root.position.sub(center);
+      const scale = getMeshDisplayScale(Math.max(size.x, size.y, size.z));
+      root.scale.setScalar(scale);
+      convertMeshMaterialsToUnlit(root, { doubleSided });
+      logMeshDebug('finalize-generic', {
+        scale,
+        fullBoundsSize: size.toArray(),
+        meshCounts: countVisibleMeshes(root),
+      });
+      return root;
+    }
+
+    function prepareMeshPlyGeometry(geometry) {
+      geometry.center();
+      if (!geometry.getAttribute('normal')) {
+        geometry.computeVertexNormals();
+      }
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+      return geometry;
+    }
+
+    /** Match splat shell size in localFrame; slightly larger than 3DGS shell for imported meshes. */
+    function getMeshPlyDisplayScale(geometry) {
+      const box = geometry.boundingBox;
+      if (!box) return 3.6;
+      box.getSize(_frameBoundsSize);
+      const maxDim = Math.max(_frameBoundsSize.x, _frameBoundsSize.y, _frameBoundsSize.z, 1e-6);
+      return getMeshDisplayScale(maxDim);
+    }
+
+    async function setMeshGlbFile({ fileBytes, fileName }) {
+      const gltf = await gltfLoader.parseAsync(toArrayBuffer(fileBytes), '');
+      if (!gltf?.scene) {
+        throw new Error(`GLB has no scene: ${fileName || 'mesh.glb'}`);
+      }
+      const wrapper = new THREE.Group();
+      wrapper.add(gltf.scene);
+      return finalizeMeshFrameRoot(wrapper, { doubleSided: true });
+    }
+
+    async function setMeshPlyFile({ fileBytes, fileName }) {
+      const geometry = prepareMeshPlyGeometry(plyLoader.parse(toArrayBuffer(fileBytes)));
+      if (!geometry.getAttribute('position')) {
+        throw new Error(`PLY mesh has no vertices: ${fileName || 'mesh.ply'}`);
+      }
+      const hasVertexColors = geometry.hasAttribute('color');
+      const hasTriangleIndex = geometry.index != null && geometry.index.count > 0;
+      let mesh;
+      if (hasTriangleIndex) {
+        const material = new THREE.MeshBasicMaterial({
+          color: hasVertexColors ? 0xffffff : 0xcccccc,
+          vertexColors: hasVertexColors,
+          side: THREE.DoubleSide,
+        });
+        mesh = new THREE.Mesh(geometry, material);
+      } else {
+        geometry.boundingBox.getSize(_frameBoundsSize);
+        const pointSize = Math.max(0.002, 2 / Math.max(
+          _frameBoundsSize.x,
+          _frameBoundsSize.y,
+          _frameBoundsSize.z,
+          1e-6,
+        ) * 0.02);
+        const material = new THREE.PointsMaterial({
+          color: hasVertexColors ? 0xffffff : 0xcccccc,
+          vertexColors: hasVertexColors,
+          size: pointSize,
+          sizeAttenuation: true,
+        });
+        mesh = new THREE.Points(geometry, material);
+      }
+      mesh.userData.isMeshPly = true;
+      // PLY meshes use standard Y-up geometry; splat's X-flip is only for 3DGS coords.
+      mesh.quaternion.identity();
+      mesh.scale.setScalar(getMeshPlyDisplayScale(geometry));
+      mesh.visible = false;
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 1;
+      localFrame.add(mesh);
+      return mesh;
+    }
+
     async function setSplatFile(init) {
       const nextSplat = new SplatMesh(init);
       nextSplat.quaternion.set(1, 0, 0, 0);
@@ -5169,6 +5697,26 @@
       localFrame.add(nextSplat);
       await nextSplat.initialized;
       return nextSplat;
+    }
+
+    function getFrameRenderKind(fileName, fileBytes) {
+      if (isMeshModelFileName(fileName)) return 'mesh';
+      const lower = String(fileName || '').toLowerCase();
+      if (lower.endsWith('.ply') && fileBytes && classifyPlyBytes(fileBytes) === 'mesh') {
+        return 'mesh';
+      }
+      return 'splat';
+    }
+
+    async function loadFrameObject({ fileBytes, fileName }) {
+      if (isMeshModelFileName(fileName)) {
+        return setMeshGlbFile({ fileBytes, fileName });
+      }
+      const lower = String(fileName || '').toLowerCase();
+      if (lower.endsWith('.ply') && classifyPlyBytes(fileBytes) === 'mesh') {
+        return setMeshPlyFile({ fileBytes, fileName });
+      }
+      return setSplatFile({ fileBytes, fileName });
     }
 
     function isDetachedArrayBuffer(buffer) {
@@ -5260,12 +5808,10 @@
           const bytesForMesh = runtimePolicy.releaseBytesAfterMesh
             ? frame.bytes
             : (frame.bytes ? frame.bytes.slice() : frame.bytes);
-          const mesh = await setSplatFile(
-            {
+          const mesh = await loadFrameObject({
             fileBytes: bytesForMesh,
             fileName: frame.name,
-            },
-          );
+          });
           mesh.visible = false;
           frame.mesh = mesh;
           if (runtimePolicy.releaseBytesAfterMesh) {
@@ -5289,12 +5835,7 @@
 
     function releaseFrameMesh(frame) {
       if (!frame?.mesh) return;
-      const mesh = frame.mesh;
-      mesh.visible = false;
-      mesh.parent?.remove(mesh);
-      if (typeof mesh.dispose === 'function') {
-        mesh.dispose();
-      }
+      disposeFrameObject(frame.mesh);
       frame.mesh = null;
       frame.meshPromise = null;
     }
@@ -5397,6 +5938,7 @@
           mesh: null,
           meshPromise: null,
           bytesPromise: null,
+          renderKind: isMeshModelFileName(fileName) ? 'mesh' : 'splat',
         },
       ]);
       setViewerSceneTitle(fileName);
@@ -5566,7 +6108,8 @@
     }
 
     const urlDirSelectEl = document.querySelector('.url-dir-select');
-    const scenePreviewGridEl = document.querySelector('.scene-preview-grid');
+    const scenePreviewGridEl = document.querySelector('.url-form .scene-preview-grid');
+    const singleImageGridEl = document.querySelector('.single-image-grid');
     const cacheAllBtnEl = document.querySelector('.cache-all-button');
     const cacheAllProgressEl = document.querySelector('.cache-all-progress');
     const cacheAllLabelEl = document.querySelector('.cache-all-label');
@@ -5685,6 +6228,25 @@
       return `${pathOnly.slice(0, slashIndex + 1)}${nextFileName}${suffix}`;
     }
 
+    /** Resolve any public/<folder>/ segment to the on-disk scene key (never localized display names). */
+    function canonicalizeSceneAssetUrl(url) {
+      let s = fixLocalizedFolderSegmentInUrl(String(url || ''));
+      const { pathOnly, suffix } = parseUrlPathParts(s);
+      if (!pathOnly) return s;
+      const match = pathOnly.match(/^(.*?)(?:\/public\/|^public\/)([^/]+)(\/.*)?$/);
+      if (!match) return s;
+      const [, lead, folderSeg, tail = ''] = match;
+      let decodedFolder = folderSeg;
+      try {
+        decodedFolder = decodeURIComponent(folderSeg.replace(/\+/g, ' '));
+      } catch {
+      }
+      const canonicalKey = resolveSceneDirectoryKey(decodedFolder);
+      if (!canonicalKey || canonicalKey === folderSeg) return s;
+      const publicLead = pathOnly.includes('/public/') ? `${lead}/public/` : 'public/';
+      return `${publicLead}${canonicalKey}${tail}${suffix}`;
+    }
+
     /** Directory prefix of a scene asset URL (from catalog), e.g. public/TikTok_Dance/ — never use localized display names. */
     function getSceneAssetFolderPrefixFromUrl(url) {
       if (!url) return '';
@@ -5746,37 +6308,27 @@
     }
 
     /**
-     * Extra path variants for static hosting; folderPrefix must come from real splat URLs (see getSceneAssetFolderPrefixFromUrl).
+     * Static-hosting path variants for a preview image; always uses on-disk scene keys, not i18n labels.
      */
-    function expandPreviewUrlVariants(folderPrefix, url) {
+    function expandPreviewUrlVariants(sceneKey, fileName, sourceUrl = '') {
       const out = [];
       const push = (u) => {
-        const fixed = fixLocalizedFolderSegmentInUrl(u);
+        const fixed = canonicalizeSceneAssetUrl(u);
         if (fixed && !out.includes(fixed)) out.push(fixed);
       };
-      push(url);
-      for (const fb of getFallbackAssetUrls(fixLocalizedFolderSegmentInUrl(url))) push(fb);
-      const fn = (url.split('/').pop() || '').split('?')[0];
-      if (!fn || !folderPrefix) return out;
-
-      let relPublic = '';
-      if (/^https?:\/\//i.test(folderPrefix)) {
-        try {
-          const dirUrl = folderPrefix.endsWith('/') ? folderPrefix : `${folderPrefix}/`;
-          const u = new URL(dirUrl);
-          relPublic = u.pathname.replace(/^\/+/, '');
-        } catch {
-          return out;
-        }
-      } else {
-        relPublic = folderPrefix.replace(/^\.\//, '').replace(/^\/+/, '');
+      const key = resolveSceneDirectoryKey(sceneKey);
+      const fn = String(fileName || '').trim()
+        || (String(sourceUrl || '').split('/').pop() || '').split('?')[0];
+      if (!key || !fn) {
+        if (sourceUrl) push(sourceUrl);
+        return out;
       }
-      if (!relPublic.endsWith('/')) relPublic += '/';
-      if (relPublic.startsWith('public/')) {
-        push(`./${relPublic}${fn}`);
-        push(`/${relPublic}${fn}`);
-        push(`/projects/4dgs/${relPublic}${fn}`);
-      }
+      const relPublic = `public/${key}/`;
+      push(`./${relPublic}${fn}`);
+      push(`/${relPublic}${fn}`);
+      push(`/projects/4dgs/${relPublic}${fn}`);
+      if (sourceUrl) push(sourceUrl);
+      for (const fb of getFallbackAssetUrls(canonicalizeSceneAssetUrl(`/${relPublic}${fn}`))) push(fb);
       return out;
     }
 
@@ -5795,9 +6347,6 @@
 
       const baseContentUrl = contentUrls[0]
         || `${String(fallbackFolderBase).replace(/\/?$/, '')}/0000_4d.ply`;
-      let folderPrefix = getSceneAssetFolderPrefixFromUrl(contentUrls[0] || '')
-        || getSceneAssetFolderPrefixFromUrl(baseContentUrl);
-      if (!folderPrefix) folderPrefix = fallbackFolderBase;
 
       let sortedFilenames = collectScenePreviewImageFilenames(contentUrls);
       const preferredName = SCENE_PREVIEW_PRIMARY_BY_SCENE[sceneKey];
@@ -5813,7 +6362,7 @@
       const orderedPreviewUrls = [];
       const seen = new Set();
       const pushOrdered = (u) => {
-        const fixed = fixLocalizedFolderSegmentInUrl(u);
+        const fixed = canonicalizeSceneAssetUrl(u);
         if (!fixed || seen.has(fixed)) return;
         seen.add(fixed);
         orderedPreviewUrls.push(fixed);
@@ -5821,28 +6370,16 @@
 
       for (const fileName of sortedFilenames) {
         const fromFrame = replaceUrlFilename(baseContentUrl, fileName);
-        if (fromFrame) {
-          for (const v of expandPreviewUrlVariants(folderPrefix, fromFrame)) {
-            pushOrdered(v);
-          }
-        }
-        const direct = `${String(folderPrefix).replace(/\/?$/, '/')}${fileName}`;
-        if (direct && direct !== fromFrame) {
-          for (const v of expandPreviewUrlVariants(folderPrefix, direct)) {
-            pushOrdered(v);
-          }
+        for (const v of expandPreviewUrlVariants(sceneKey, fileName, fromFrame)) {
+          pushOrdered(v);
         }
       }
 
       const fallbackPrimaryName = preferredName || '0000.png';
       const fallbackSecondaryName = fallbackPrimaryName === '0000.png' ? '0001.png' : '0000.png';
       const primaryPreviewUrl = orderedPreviewUrls[0]
-        || fixLocalizedFolderSegmentInUrl(
-          `${String(fallbackFolderBase).replace(/\/?$/, '/')}${fallbackPrimaryName}`,
-        )
-        || fixLocalizedFolderSegmentInUrl(
-          `${String(fallbackFolderBase).replace(/\/?$/, '/')}${fallbackSecondaryName}`,
-        );
+        || canonicalizeSceneAssetUrl(`./public/${sceneKey}/${fallbackPrimaryName}`)
+        || canonicalizeSceneAssetUrl(`./public/${sceneKey}/${fallbackSecondaryName}`);
       const rest = orderedPreviewUrls.filter((u) => u !== primaryPreviewUrl);
       return {
         primary: primaryPreviewUrl,
@@ -5871,13 +6408,14 @@
       const previewInfo = scenePreviewByDirectory.get(normalized);
       if (!previewInfo) return [];
       return [previewInfo.primary, ...(Array.isArray(previewInfo.fallbacks) ? previewInfo.fallbacks : [])]
-        .map(url => String(url || '').trim())
+        .map(url => canonicalizeSceneAssetUrl(String(url || '').trim()))
         .filter(Boolean);
     }
 
     async function handleSceneSelection(dirUrl, previewCandidates = null, requestId = null) {
       const normalized = normalizeDirectoryUrl(dirUrl);
       if (!normalized || normalized === '/') return;
+      document.body.classList.remove('is-single-image');
       const activeRequestId = requestId ?? (++sceneSelectionRequestId);
       setSceneSwitching(true);
       selectedSceneDirectory = normalized;
@@ -6268,6 +6806,122 @@
       });
     }
 
+    // Single-image (single 3DGS) scenes: each folder under public/images/<key>/
+    // holds one <key>.ply splat and a <key>.jpg preview. Viewed without the playback bar.
+    const SINGLE_IMAGE_SCENES = [
+      { key: 'animate', label: { en: 'Animate', zh: '动画' } },
+      { key: 'boat', label: { en: 'Boat', zh: '小船' } },
+      { key: 'cat', label: { en: 'Cat', zh: '猫' } },
+      { key: 'girl', label: { en: 'Girl', zh: '女孩' }, plyFile: 'scene_1782797757958_e92ab3db.ply' },
+    ].map((scene) => {
+      const base = `./public/images/${scene.key}`;
+      const previewStem = scene.previewFile || `${scene.key}`;
+      return {
+        ...scene,
+        title: (scene.label && (scene.label[UI_LANG] || scene.label.en)) || scene.key,
+        ply: `${base}/${scene.plyFile || `${scene.key}.ply`}`,
+        previews: scene.previewFile
+          ? [`${base}/${scene.previewFile}`]
+          : [
+              `${base}/${previewStem}.jpg`,
+              `${base}/${previewStem}.jpeg`,
+              `${base}/${previewStem}.png`,
+              `${base}/${previewStem}.webp`,
+            ],
+      };
+    });
+
+    async function loadSingleImageScene(scene) {
+      document.body.classList.add('is-single-image');
+      selectedSceneDirectory = '';
+      sceneDirectoryList = [];
+      sceneSelectionRequestId += 1;
+      applySceneMusicByDirectory('');
+      updateSceneNavButtons();
+      syncScenePreviewSelection();
+      if (urlDirSelectEl) urlDirSelectEl.value = '';
+      const fileName = scene.ply.split('/').pop().split('?')[0];
+      try {
+        await switchToFrameList([
+          {
+            url: scene.ply,
+            name: fileName,
+            timeUnits: 0,
+            file: null,
+            bytes: null,
+            mesh: null,
+            meshPromise: null,
+            bytesPromise: null,
+            renderKind: 'splat',
+          },
+        ], {
+          ensureFirstBytes: true,
+          showViewerEarly: true,
+          viewerPreviewCandidates: scene.previews,
+        });
+        setViewerSceneTitle(scene.title);
+      } catch (e) {
+        if (isPageUnloading) return;
+        console.error('Single image scene load failed:', e);
+        alert(t('failedToLoadScene', { message: e?.message || e }));
+        showImportInterface();
+      }
+    }
+
+    function setupSingleImageCards() {
+      if (!singleImageGridEl) return;
+      singleImageGridEl.innerHTML = '';
+      for (const scene of SINGLE_IMAGE_SCENES) {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'scene-card';
+        card.dataset.singleImageKey = scene.key;
+
+        const thumb = document.createElement('div');
+        thumb.className = 'scene-card-thumb';
+
+        const image = document.createElement('img');
+        image.alt = `${scene.title} preview`;
+        image.loading = 'lazy';
+        image.decoding = 'async';
+        const fallbackQueue = scene.previews.slice(1);
+        image.onerror = () => {
+          const nextUrl = fallbackQueue.shift();
+          if (nextUrl) {
+            image.src = nextUrl;
+            return;
+          }
+          image.remove();
+          if (!thumb.querySelector('.scene-card-thumb-fallback')) {
+            const fallbackText = document.createElement('span');
+            fallbackText.className = 'scene-card-thumb-fallback';
+            fallbackText.textContent = t('noPreview');
+            thumb.appendChild(fallbackText);
+          }
+        };
+        image.src = scene.previews[0];
+        thumb.appendChild(image);
+
+        const title = document.createElement('span');
+        title.className = 'scene-card-title';
+        title.textContent = scene.title;
+
+        card.appendChild(thumb);
+        card.appendChild(title);
+        card.addEventListener('click', async () => {
+          if (card.classList.contains('is-loading')) return;
+          card.classList.add('is-loading');
+          try {
+            await loadSingleImageScene(scene);
+          } finally {
+            card.classList.remove('is-loading');
+          }
+        });
+
+        singleImageGridEl.appendChild(card);
+      }
+    }
+
     urlDirSelectEl?.addEventListener('change', async () => {
       const selected = urlDirSelectEl.value;
       if (!selected) return;
@@ -6285,7 +6939,8 @@
       disabled: false,
     });
 
-    
+    setupImportDropZoneInteractions();
+    setupSingleImageCards();
   </script>
   <div class="canvas-container invisible">
     <div class="viewer-window">
@@ -6343,7 +6998,7 @@
             </div>
           </div>
         </div>
-        <div class="author-credit author-credit-viewer">@author: Tao Hu  |  @version: v0.8.0</div>
+        <div class="author-credit author-credit-viewer">@author: Tao Hu  |  @version: v0.9.0</div>
       </div>
     </div>
   </div>
@@ -6362,9 +7017,14 @@
           </select>
         </div>
       </div>
-      <div class="drop-zone" data-i18n-key="dragDrop">Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat) + music (.mp3) here</div>
-      <input id="file-input" class="hidden" accept=".ply,.spz,.splat,.ksplat,.sog,.mp3,.ogg,.wav,.m4a,.aac,.png,.jpg,.jpeg,.webp,.gif,.bmp" type="file" multiple />
+      <input id="file-input" class="hidden" accept=".ply,.glb,.gltf,.spz,.splat,.ksplat,.sog,.mp3,.ogg,.wav,.m4a,.aac,.png,.jpg,.jpeg,.webp,.gif,.bmp" type="file" multiple />
+      <label class="drop-zone" for="file-input" data-i18n-key="dragDrop">Drag and drop splat (.ply, .sog, .spz, .splat, .ksplat), mesh (.ply, .glb), or music (.mp3) here</label>
+      <div class="single-image-section">
+        <div class="single-image-section-title" data-i18n-key="singleImageTitle">Single Image (3DGS)</div>
+        <div class="single-image-grid scene-preview-grid" aria-live="polite"></div>
+      </div>
       <form class="url-form">
+        <div class="single-image-section-title" data-i18n-key="singleVideoTitle">Single Video (4DGS)</div>
         <div class="scene-preview-grid" aria-live="polite"></div>
         <div class="url-row">
           <div class="frame-limit-wrap" data-i18n-title="frameRange" title="Frame range">
@@ -6380,7 +7040,7 @@
           </button>
         </div>
       </form>
-      <div class="author-credit author-credit-import">@author: Tao Hu  |  @version: v0.8.0</div>
+      <div class="author-credit author-credit-import">@author: Tao Hu  |  @version: v0.9.0</div>
     </div>
   </div>
 </body>
